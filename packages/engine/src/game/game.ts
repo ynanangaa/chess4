@@ -1,7 +1,8 @@
 import { Board } from "../board/board";
 import { Move } from "../moves/move";
+import { RuleSet } from "../rules/rule-set";
 
-export default class Game {
+export class Game implements RuleSet {
   private board: Board;
   private history: Move[];
   constructor() {
@@ -32,13 +33,72 @@ export default class Game {
     return g;
   }
 
-  makeMove(move: Move): boolean {
+  addMove(move: Move): boolean {
     const result = this.board.movePiece(move.pieceId, move.to);
     if (result) {
       this.history.push(move);
       return true;
     }
     return false;
+  }
+
+  getBoard(): Board {
+    return this.board;
+  }
+
+  getHistory(): Move[] {
+    return this.history.slice();
+  }
+
+  getCurrentPlayerColor(): string {
+    // determine current player based on history length of a 4-player game
+    const colors = ["red", "blue", "yellow", "green"];
+    return colors[this.history.length % colors.length];
+  }
+
+  getLegalMoves(pieceId: string): Move[] {
+    const selectedPiece = this.board.getPiece(pieceId);
+    if (!selectedPiece) return [];
+    let newPositions: Move[] = []
+    // Get legal moves according to the piece type and current game state
+    const selectedPieceType = selectedPiece.type;
+    if (selectedPieceType === "P") {
+      // if the pawn has not moved yet, it can move two squares forward
+      const count = selectedPiece.position!.row === 2 ? 2 : 1;;
+      // if the current player is red or green, the move follows the column
+      if (selectedPiece.color === "red" || selectedPiece.color === "green") {
+        const newCol = selectedPiece.position!.col;
+        for (let i = 1; i <= count; i++) {
+          const newRow = selectedPiece.position!.row + i;
+          newPositions.push({ pieceId, from: selectedPiece.position, to: { row: newRow, col: newCol } });
+        }
+      } else { // if the current player is blue or yellow, the move follows the row
+        const newRow = selectedPiece.position!.row;
+        for (let i = 1; i <= count; i++) {
+          const newCol = String.fromCharCode(selectedPiece.position!.col.charCodeAt(0) + i);
+          newPositions.push({ pieceId, from: selectedPiece.position, to: { row: newRow, col: newCol } });
+        }
+      }
+    } else if (selectedPieceType === "N") {
+      // Knight moves in an L shape: two squares in one direction and then one square perpendicular
+
+      const knightMoves = [
+        { row: selectedPiece.position!.row - 2, col: String.fromCharCode(selectedPiece.position!.col.charCodeAt(0) - 1) },
+        { row: selectedPiece.position!.row - 2, col: String.fromCharCode(selectedPiece.position!.col.charCodeAt(0) + 1) },
+        { row: selectedPiece.position!.row - 1, col: String.fromCharCode(selectedPiece.position!.col.charCodeAt(0) - 2) },
+        { row: selectedPiece.position!.row - 1, col: String.fromCharCode(selectedPiece.position!.col.charCodeAt(0) + 2) },
+        { row: selectedPiece.position!.row + 1, col: String.fromCharCode(selectedPiece.position!.col.charCodeAt(0) - 2) },
+        { row: selectedPiece.position!.row + 1, col: String.fromCharCode(selectedPiece.position!.col.charCodeAt(0) + 2) },
+        { row: selectedPiece.position!.row + 2, col: String.fromCharCode(selectedPiece.position!.col.charCodeAt(0) - 1) },
+        { row: selectedPiece.position!.row + 2, col: String.fromCharCode(selectedPiece.position!.col.charCodeAt(0) + 1) }
+      ];
+      for (const move of knightMoves) {
+        newPositions.push({ pieceId, from: selectedPiece.position, to: move });
+      }
+    } else if (selectedPieceType === "B") {
+      // Bishop moves diagonally in any direction while it does not encounter another piece
+    return newPositions;
+
   }
 
   /*undo(): Move | null {
@@ -53,13 +113,7 @@ export default class Game {
     return mv;
   }*/
 
-  /*getLegalMoves(): Move[] {
-    if (typeof (this.board as any).generateLegalMoves === "function") {
-      // @ts-ignore
-      return (this.board as any).generateLegalMoves();
-    }
-    return [];
-  }
+  /*
 
   isGameOver(): boolean {
     // try common board methods
