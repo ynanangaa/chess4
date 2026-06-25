@@ -2,10 +2,10 @@ import { Board } from "../board/board";
 import { Move } from "../moves/move";
 import { RuleSet } from "../rules/rule-set";
 
-export class Game implements RuleSet {
+export class Game {
   private board: Board;
   private history: Move[];
-  constructor() {
+  constructor(private ruleSet: RuleSet) {
     this.board = new Board();
     this.history = [];
   }
@@ -27,7 +27,7 @@ export class Game implements RuleSet {
   }*/
 
   clone(): Game {
-    const g = new Game();
+    const g = new Game(this.ruleSet);
     g.board = this.board.clone();
     g.history = this.history.slice();
     return g;
@@ -42,63 +42,22 @@ export class Game implements RuleSet {
     return false;
   }
 
-  getBoard(): Board {
+  public getBoard(): Board {
     return this.board;
   }
 
-  getHistory(): Move[] {
+  public getHistory(): Move[] {
     return this.history.slice();
   }
 
-  getCurrentPlayerColor(): string {
+  public getCurrentPlayerColor(): string {
     // determine current player based on history length of a 4-player game
-    const colors = ["red", "blue", "yellow", "green"];
+    const colors = ["red", "blue", "green", "yellow"];
     return colors[this.history.length % colors.length];
   }
 
   getLegalMoves(pieceId: string): Move[] {
-    const selectedPiece = this.board.getPiece(pieceId);
-    if (!selectedPiece) return [];
-    let newPositions: Move[] = []
-    // Get legal moves according to the piece type and current game state
-    const selectedPieceType = selectedPiece.type;
-    if (selectedPieceType === "P") {
-      // if the pawn has not moved yet, it can move two squares forward
-      const count = selectedPiece.position!.row === 2 ? 2 : 1;;
-      // if the current player is red or green, the move follows the column
-      if (selectedPiece.color === "red" || selectedPiece.color === "green") {
-        const newCol = selectedPiece.position!.col;
-        for (let i = 1; i <= count; i++) {
-          const newRow = selectedPiece.position!.row + i;
-          newPositions.push({ pieceId, from: selectedPiece.position, to: { row: newRow, col: newCol } });
-        }
-      } else { // if the current player is blue or yellow, the move follows the row
-        const newRow = selectedPiece.position!.row;
-        for (let i = 1; i <= count; i++) {
-          const newCol = String.fromCharCode(selectedPiece.position!.col.charCodeAt(0) + i);
-          newPositions.push({ pieceId, from: selectedPiece.position, to: { row: newRow, col: newCol } });
-        }
-      }
-    } else if (selectedPieceType === "N") {
-      // Knight moves in an L shape: two squares in one direction and then one square perpendicular
-
-      const knightMoves = [
-        { row: selectedPiece.position!.row - 2, col: String.fromCharCode(selectedPiece.position!.col.charCodeAt(0) - 1) },
-        { row: selectedPiece.position!.row - 2, col: String.fromCharCode(selectedPiece.position!.col.charCodeAt(0) + 1) },
-        { row: selectedPiece.position!.row - 1, col: String.fromCharCode(selectedPiece.position!.col.charCodeAt(0) - 2) },
-        { row: selectedPiece.position!.row - 1, col: String.fromCharCode(selectedPiece.position!.col.charCodeAt(0) + 2) },
-        { row: selectedPiece.position!.row + 1, col: String.fromCharCode(selectedPiece.position!.col.charCodeAt(0) - 2) },
-        { row: selectedPiece.position!.row + 1, col: String.fromCharCode(selectedPiece.position!.col.charCodeAt(0) + 2) },
-        { row: selectedPiece.position!.row + 2, col: String.fromCharCode(selectedPiece.position!.col.charCodeAt(0) - 1) },
-        { row: selectedPiece.position!.row + 2, col: String.fromCharCode(selectedPiece.position!.col.charCodeAt(0) + 1) }
-      ];
-      for (const move of knightMoves) {
-        newPositions.push({ pieceId, from: selectedPiece.position, to: move });
-      }
-    } else if (selectedPieceType === "B") {
-      // Bishop moves diagonally in any direction while it does not encounter another piece
-    return newPositions;
-
+    return this.ruleSet.getLegalMoves(this, pieceId);
   }
 
   /*undo(): Move | null {
