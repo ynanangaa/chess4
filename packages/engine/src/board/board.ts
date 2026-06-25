@@ -1,34 +1,36 @@
 import { Piece } from '../pieces/piece';
 import { Position } from '../position/position';
+import { INVALID_SQUARES } from './constants';
 
 export class Board {
   // pieces keyed by id
   private pieces: Map<string, Piece> = new Map();
 
   constructor(initialPieces?: Piece[]) {
-    if (initialPieces) initialPieces.forEach(p => this.pieces.set(p.id, { ...p }));
+    if (initialPieces) initialPieces.forEach(p => this.pieces.set(p.getId(), p));
   }
 
-  // Return all pieces (copy)
-  getPieces(): Piece[] {
-    return Array.from(this.pieces.values()).map(p => ({ ...p }));
+  // Return all pieces
+  public getPieces(): Piece[] {
+    return Array.from(this.pieces.values());
   }
 
   // Get piece by id
-  getPiece(id: string): Piece | undefined {
-    const p = this.pieces.get(id);
-    return p ? { ...p } : undefined;
+  public getPiece(id: string): Piece | undefined {
+    return this.pieces.get(id);
   }
 
   // Find piece at a position
-  getPieceAt(position: Position): Piece | undefined {
-    for (const p of this.pieces.values()) if (p.position === position) return { ...p };
+  public getPieceAt(position: Position): Piece | undefined {
+    for (const p of this.pieces.values()) {
+      if (p.getPosition() === position) return p;
+    }
     return undefined;
   }
 
   // Add a piece (overwrites if id exists)
   addPiece(piece: Piece): void {
-    this.pieces.set(piece.id, { ...piece });
+    this.pieces.set(piece.getId(), piece);
   }
 
   // Remove piece by id (marks captured by setting position=null) and returns removed piece
@@ -41,21 +43,35 @@ export class Board {
   }*/
 
   // Move a piece to a target position.
-  movePiece(id: string, to: Position): Piece | undefined {
+  public movePiece(id: string, to: Position): Piece | undefined {
     const p = this.pieces.get(id);
     if (!p) return undefined;
-    const moved = { ...p, position: to };
+    const moved = this.pieces.get(id);
+    if (!moved) return undefined;
+    moved.setPosition(to);
     this.pieces.set(id, moved);
-    return { ...moved };
+    return moved;
   }
 
   // Is square occupied by a living piece
-  isOccupied(position: Position): boolean {
-    return Array.from(this.pieces.values()).some(p => p.position === position);
+  public isOccupied(position: Position): boolean {
+    return Array.from(this.pieces.values()).some(p => p.getPosition() === position);
+  }
+
+  // Does the square exists on the board (14 x 14, with some exceptions)
+  public isValidPosition(position: Position): boolean {
+    return !INVALID_SQUARES.has(`${position.col}${position.row}`);
+  }
+
+  // Translate a position by row and column offsets
+  public translatePosition(position: Position, rowOffset: number, colOffset: number): Position {
+    const newRow = position.row + rowOffset;
+    const newCol = String.fromCharCode(position.col.charCodeAt(0) + colOffset);
+    return { row: newRow, col: newCol };
   }
 
   // Clear board
-  destroy(): void {
+  public destroy(): void {
     this.pieces.clear();
   }
 
@@ -65,10 +81,10 @@ export class Board {
   }
 
   // Simple text representation
-  toString(): string {
+  public toString(): string {
     const pieces = this.getPieces();
     return pieces
-      .map(p => `${p.id}:${p.type}:${p.color}:${p.position ?? 'captured'}`)
+      .map(p => `${p.getId()}:${p.getType()}:${p.getColor()}:${p.getPosition() ?? 'captured'}`)
       .join(' ');
   }
 }
