@@ -16,8 +16,11 @@ export interface RuleSet {
   // Return true if the king of the given color can castle on the given side (kingSide=true for kingside, false for queenside)
   canCastle(game: Game, player: PlayerColor, kingSide: boolean): boolean;
 
-  // Return true if a pawn can take en passant on the given square (position) for the given player
-  canEnPassant(game: Game, player: PlayerColor, position: string): boolean;
+  // Return true if the pawn of the given id can move two squares forward, for the given player color
+  canDoubleSteps(game: Game, player: PlayerColor, pawnId: string): boolean;
+
+  // Return true if a pawn of the given id can take en passant, for the given player color
+  canEnPassant(game: Game, pawnId: string): boolean;
 
   // Calculate and return the game state
   getGameState(game: Game): GameState;
