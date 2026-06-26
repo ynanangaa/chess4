@@ -1,14 +1,23 @@
 {
   "compilerOptions": {
-    "rootDir": "./src",
-    "outDir": "./dist",
     "module": "commonjs",
+    "moduleResolution": "node",
     "target": "es2020",
     "declaration": true,
+    "declarationMap": true,
     "strict": true,
     "isolatedModules": true,
     "skipLibCheck": true,
     "esModuleInterop": true,
-    "sourceMap": true
-  }
+    "sourceMap": true,
+    "ignoreDeprecations": "6.0"
+  },
+  "include": [
+    "src",
+    "tests"
+  ],
+  "exclude": [
+    "dist",
+    "node_modules"
+  ]
 }
