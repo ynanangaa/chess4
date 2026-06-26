@@ -22,9 +22,7 @@ export class King extends Piece {
     for (const rowOffset of directionOffsets) {
       for (const colOffset of directionOffsets) {
         if (rowOffset === 0 && colOffset === 0) continue;
-        const newRow = position.row + rowOffset;
-        const newCol = String.fromCharCode(position.col.charCodeAt(0) + colOffset);
-        const newPosition = { row: newRow, col: newCol };
+        const newPosition = board.translatePosition(position, rowOffset, colOffset);
         if (!board.isValidPosition(newPosition)) continue;
         const occupant = board.getPieceAt(newPosition);
         if (!occupant || occupant.getColor() !== this.getColor()) {

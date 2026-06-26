@@ -2,8 +2,15 @@ import { RuleSet } from "./rule-set";
 import { Game } from "../game/game";
 import { Move } from "../moves/move";
 import { PlayerColor } from "../players/player-color";
+import { GameState } from "../states/game-state";
+import { MoveGenerator } from "../moves/move-generator";
 
 export class ClassicRuleSet implements RuleSet {
+
+    constructor(
+        private readonly moveGenerator: MoveGenerator
+    ) { }
+
     isValidMove(move: Move): boolean {
         // Implement the logic to check if the move is valid according to classic chess rules
         return true; // Placeholder implementation
@@ -35,8 +42,8 @@ export class ClassicRuleSet implements RuleSet {
         return false; // Placeholder implementation
     }
 
-    getGameState(game: Game): string {
+    getGameState(game: Game): GameState {
         // Implement the logic to determine the game state (e.g., ongoing, check, checkmate, stalemate)
-        return "ongoing"; // Placeholder implementation
+        return new GameState() ; // Placeholder implementation
     }
 }
