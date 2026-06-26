@@ -19,9 +19,12 @@
   "type": "commonjs",
   "main": "dist/index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test:engine": "npm --workspace @chess4/engine test"
   },
   "devDependencies": {
+    "@types/jest": "^29.5.14",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.3.1",
     "typescript": "^6.0.3"
   }
 }

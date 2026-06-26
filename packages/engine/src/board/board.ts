@@ -10,6 +10,10 @@ export class Board {
     if (initialPieces) initialPieces.forEach(p => this.pieces.set(p.getId(), p));
   }
 
+  private isSamePosition(left: Position | null, right: Position | null): boolean {
+    return !!left && !!right && left.col === right.col && left.row === right.row;
+  }
+
   // Return all pieces
   public getPieces(): Piece[] {
     return Array.from(this.pieces.values());
@@ -23,7 +27,7 @@ export class Board {
   // Find piece at a position
   public getPieceAt(position: Position): Piece | undefined {
     for (const p of this.pieces.values()) {
-      if (p.getPosition() === position) return p;
+      if (this.isSamePosition(p.getPosition(), position)) return p;
     }
     return undefined;
   }
@@ -55,7 +59,7 @@ export class Board {
 
   // Is square occupied by a living piece
   public isOccupied(position: Position): boolean {
-    return Array.from(this.pieces.values()).some(p => p.getPosition() === position);
+    return Array.from(this.pieces.values()).some(p => this.isSamePosition(p.getPosition(), position));
   }
 
   // Does the square exists on the board (14 x 14, with some exceptions)
