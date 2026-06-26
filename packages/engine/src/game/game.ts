@@ -3,11 +3,14 @@ import { Move } from "../moves/move";
 import { RuleSet } from "../rules/rule-set";
 import { Player } from "../players/player";
 import { PlayerColor } from "../players/player-color";
+import { GameState } from "../states/game-state";
 
 export class Game {
   private board: Board;
   private history: Move[];
   private players: Player[] = [];
+  private gameState: GameState;
+
   constructor(private ruleSet: RuleSet) {
     this.board = new Board();
     this.history = [];
@@ -17,6 +20,7 @@ export class Game {
       new Player("P3", PlayerColor.YELLOW),
       new Player("P4", PlayerColor.GREEN),
     ];
+    this.gameState = new GameState();
   }
 
   // clean up resources if needed
@@ -42,10 +46,15 @@ export class Game {
     return g;
   }
 
+  private updateGameStatus(): void {
+    this.gameState = this.ruleSet.getGameState(this);
+  }
+
   applyMove(move: Move): boolean {
     const result = this.board.movePiece(move.pieceId, move.to);
     if (result) {
       this.history.push(move);
+      this.updateGameStatus();
       return true;
     }
     return false;
@@ -57,6 +66,10 @@ export class Game {
 
   public getHistory(): Move[] {
     return this.history.slice();
+  }
+
+  public getGameState(): GameState {
+    return this.gameState;
   }
 
   public getCurrentPlayerColor(): PlayerColor {

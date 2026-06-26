@@ -1,6 +1,7 @@
 import { Game } from '../game/game';
 import { Move } from '../moves/move';
 import { PlayerColor } from '../players/player-color';
+import { GameState } from '../states/game-state';
 
 export interface RuleSet {
   // Return true if the move is valid according to the ruleset
@@ -18,6 +19,6 @@ export interface RuleSet {
   // Return true if a pawn can take en passant on the given square (position) for the given player
   canEnPassant(game: Game, player: PlayerColor, position: string): boolean;
 
-  // Reurn the game state
-  getGameState(game: Game): string;
+  // Calculate and return the game state
+  getGameState(game: Game): GameState;
 }
