@@ -1,13 +1,22 @@
 import { Board } from "../board/board";
 import { Move } from "../moves/move";
 import { RuleSet } from "../rules/rule-set";
+import { Player } from "../players/player";
+import { PlayerColor } from "../players/player-color";
 
 export class Game {
   private board: Board;
   private history: Move[];
+  private players: Player[] = [];
   constructor(private ruleSet: RuleSet) {
     this.board = new Board();
     this.history = [];
+    this.players = [
+      new Player("P1", PlayerColor.RED),
+      new Player("P2", PlayerColor.BLUE),
+      new Player("P3", PlayerColor.YELLOW),
+      new Player("P4", PlayerColor.GREEN),
+    ];
   }
 
   // clean up resources if needed
@@ -33,7 +42,7 @@ export class Game {
     return g;
   }
 
-  addMove(move: Move): boolean {
+  applyMove(move: Move): boolean {
     const result = this.board.movePiece(move.pieceId, move.to);
     if (result) {
       this.history.push(move);
@@ -50,9 +59,9 @@ export class Game {
     return this.history.slice();
   }
 
-  public getCurrentPlayerColor(): string {
+  public getCurrentPlayerColor(): PlayerColor {
     // determine current player based on history length of a 4-player game
-    const colors = ["red", "blue", "green", "yellow"];
+    const colors = this.players.map(player => player.getColor());
     return colors[this.history.length % colors.length];
   }
 

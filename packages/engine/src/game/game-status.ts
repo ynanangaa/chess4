@@ -1,0 +1,11 @@
+export enum GameStatus {
+  RUNNING,
+  GAME_OVER,
+  //CHECK,
+  //CHECKMATE,
+  //STALEMATE,
+  //DRAW_REPETITION,
+  //DRAW_50_MOVES,
+  //DRAW_INSUFFICIENT,
+  //RESIGNATION,
+}
