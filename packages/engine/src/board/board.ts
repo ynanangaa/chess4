@@ -64,6 +64,13 @@ export class Board {
 
   // Does the square exists on the board (14 x 14, with some exceptions)
   public isValidPosition(position: Position): boolean {
+    // Check if row is within valid range (1-14)
+    if (position.row < 1 || position.row > 14) return false;
+    
+    // Check if column is within valid range (a-n)
+    if (position.col < 'a' || position.col > 'n') return false;
+    
+    // Check if position is not in the excluded squares
     return !INVALID_SQUARES.has(`${position.col}${position.row}`);
   }
 
