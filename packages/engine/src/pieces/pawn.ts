@@ -6,8 +6,12 @@ import { Board } from "../board/board";
 import { PawnDirection } from "./pawn-direction";
 
 export class Pawn extends Piece {
-  constructor(id: string, color: PlayerColor, position: Position | null) {
-    super(id, color, PieceType.PAWN, position);
+  constructor(color: PlayerColor, pawnNum: number) {
+    super(color, PieceType.PAWN, pawnNum);;
+  }
+
+  public setType(type: PieceType): void {
+    this.type = type;
   }
 
   // Determine the forward direction for the pawn based on its color

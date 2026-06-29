@@ -5,8 +5,22 @@ import { PieceType } from "./piece-type";;
 import { Board } from "../board/board";
 
 export class King extends Piece {
-  constructor(id: string, color: PlayerColor, position: Position | null) {
-    super(id, color, PieceType.KING, position);
+  constructor(color: PlayerColor) {
+    super(color, PieceType.KING);
+    switch(this.color) {
+      case PlayerColor.RED:
+        this.position = {row: 1, col: 'h'};
+        break;
+      case PlayerColor.YELLOW:
+        this.position = {row: 14, col: 'g'};
+        break;
+      case PlayerColor.BLUE:
+        this.position = {row: 8, col: 'a'};
+        break;
+      case PlayerColor.GREEN:
+        this.position = {row: 7, col: 'n'};
+        break;
+    }
   }
 
   public getPseudoLegalMoves(board: Board): Position[] {

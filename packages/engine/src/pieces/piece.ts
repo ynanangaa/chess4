@@ -4,16 +4,39 @@ import { Position, PositionOffset } from "../position/position";
 import { Board } from "../board/board";
 
 export abstract class Piece {
-  private id: string;
-  private color: PlayerColor;
-  private type: PieceType;
-  private position: Position | null; // null if captured
+  protected id: string;
+  protected color: PlayerColor;
+  protected type: PieceType;
+  protected position: Position | null = null; // null if captured or uninitialized
 
-  constructor(id: string, color: PlayerColor, type: PieceType, position: Position | null) {
-    this.id = id;
+  constructor(color: PlayerColor, type: PieceType, pawnNum?: number) {
+    this.id = type + "-" + color;
     this.color = color;
     this.type = type;
-    this.position = position;
+    // Initialize the position if the piece is pawn (pawnNum is given)
+    if (pawnNum) {
+      this.id += + "-" + pawnNum;
+      switch(this.color) {
+        case PlayerColor.RED:
+          this.position = {
+            row: 2,
+            col: String.fromCharCode('c'.charCodeAt(0) + pawnNum) 
+          };
+          break;
+        case PlayerColor.YELLOW:
+          this.position = {
+            row: 13, 
+            col: String.fromCharCode('l'.charCodeAt(0) - pawnNum)
+          };
+          break;
+        case PlayerColor.BLUE:
+          this.position = {row: 12 - pawnNum, col: 'b'};
+          break;
+        case PlayerColor.GREEN:
+          this.position = {row: 3 + pawnNum, col: 'm'};
+          break;
+      }
+    }
   }
 
   // Accessor methods
@@ -34,6 +57,10 @@ export abstract class Piece {
   }
 
   // Mutator methods
+  public setId(id: string): void {
+    this.id = id;
+  }
+
   public setPosition(position: Position | null): void {
     this.position = position;
   }

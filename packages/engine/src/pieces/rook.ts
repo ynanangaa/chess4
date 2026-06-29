@@ -1,12 +1,26 @@
-import { Piece } from "./piece";
+import { DuplicatePiece } from "./duplicate-piece";
 import { Position } from "../position/position";
 import { PlayerColor } from "../players/player-color";
 import { PieceType } from "./piece-type";
 import { Board } from "../board/board";
 
-export class Rook extends Piece {
-  constructor(id: string, color: PlayerColor, position: Position | null) {
-    super(id, color, PieceType.ROOK, position);
+export class Rook extends DuplicatePiece {
+  constructor(color: PlayerColor, kingSide: boolean) {
+    super(color, PieceType.ROOK, kingSide);
+    switch(this.color) {
+      case PlayerColor.RED:
+        this.position = {row: 1, col: kingSide ? 'k': 'd'};
+        break;
+      case PlayerColor.YELLOW:
+        this.position = {row: 14, col: kingSide ? 'd': 'k'};
+        break;
+      case PlayerColor.BLUE:
+        this.position = {row: kingSide ? 11: 4, col: 'a'};
+        break;
+      case PlayerColor.GREEN:
+        this.position = {row: kingSide ? 4: 11, col: 'n'};
+        break;
+    }
   }
 
   public getPseudoLegalMoves(board: Board): Position[] {
