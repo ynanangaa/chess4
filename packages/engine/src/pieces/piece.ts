@@ -1,42 +1,38 @@
-import { PlayerColor } from "../players/player-color";
-import { PieceType } from "./piece-type";
-import { Position, PositionOffset } from "../position/position";
-import { Board } from "../board/board";
+import { Color, SquareCoords, SquareCoordsOffset } from "../types";
+import { PieceType } from "../types";
+import { Board } from "../board";
+import { parseSquareId, translateSquareCoords } from "../utils";
 
 export abstract class Piece {
   protected id: string;
-  protected color: PlayerColor;
+  protected color: Color;
   protected type: PieceType;
-  protected position: Position | null = null; // null if captured or uninitialized
+  protected initialSquareId: number;
 
-  constructor(color: PlayerColor, type: PieceType, pawnNum?: number) {
-    this.id = type + "-" + color;
+  constructor(color: Color, type: PieceType, pawnNum?: number) {
+    this.id = type ? `${type}-${color}` : `${color}`;
     this.color = color;
     this.type = type;
+    let initialPos: number = 0;
     // Initialize the position if the piece is pawn (pawnNum is given)
     if (pawnNum) {
-      this.id += + "-" + pawnNum;
+      this.id += `-${pawnNum}`;
       switch(this.color) {
-        case PlayerColor.RED:
-          this.position = {
-            row: 2,
-            col: String.fromCharCode('c'.charCodeAt(0) + pawnNum) 
-          };
+        case Color.RED:
+          initialPos += parseSquareId(2, 3 + pawnNum);
           break;
-        case PlayerColor.YELLOW:
-          this.position = {
-            row: 13, 
-            col: String.fromCharCode('l'.charCodeAt(0) - pawnNum)
-          };
+        case Color.YELLOW:
+          initialPos += parseSquareId(13, 12 - pawnNum);
           break;
-        case PlayerColor.BLUE:
-          this.position = {row: 12 - pawnNum, col: 'b'};
+        case Color.BLUE:
+          initialPos += parseSquareId(12 - pawnNum, 2);
           break;
-        case PlayerColor.GREEN:
-          this.position = {row: 3 + pawnNum, col: 'm'};
+        case Color.GREEN:
+          initialPos += parseSquareId(3 + pawnNum, 13);
           break;
       }
     }
+    this.initialSquareId = initialPos;
   }
 
   // Accessor methods
@@ -44,7 +40,7 @@ export abstract class Piece {
     return this.id;
   }
 
-  public getColor(): PlayerColor {
+  public getColor(): Color {
     return this.color;
   }
 
@@ -52,8 +48,8 @@ export abstract class Piece {
     return this.type;
   }
 
-  public getPosition(): Position | null {
-    return this.position;
+  public getInitialSquareId(): number {
+    return this.initialSquareId;
   }
 
   // Mutator methods
@@ -61,36 +57,34 @@ export abstract class Piece {
     this.id = id;
   }
 
-  public setPosition(position: Position | null): void {
-    this.position = position;
+  public setInitialSquareId(initSquareId: number): void {
+    this.initialSquareId = initSquareId;
   }
 
   // Abstract method to be implemented by subclasses
-  public abstract getPseudoLegalMoves(board: Board): Position[];
+  public abstract getStandardMoves(board: Board): SquareCoords[];
 
   // Abstract method to get sliding directions for pieces like Rook, Bishop, and Queen
-  protected getSlidingDirections(board: Board, directions: PositionOffset[]): Position[] {
-    const moves: Position[] = [];
+  protected getSlidingDirections(board: Board, directions: SquareCoordsOffset[]): SquareCoords[] {
+    const moves: SquareCoords[] = [];
     
     for (const direction of directions) {
-      let step = 1;
+      let currentSquare = board.getSquareOfPiece(this.id)!;
 
       while (true) {
-        const newPosition = board.translatePosition(
-            this.getPosition()!,
-            step * direction.rowDelta,
-            step * direction.colDelta
-        );
-        if (!board.isValidPosition(newPosition)) break;
-        const occupant = board.getPieceAt(newPosition);
+        const translatedCoords = translateSquareCoords(currentSquare?.coords, direction);
+        if(!translatedCoords) break;
+        const newSquare = board.getSquareByCoords(translatedCoords);
+        if (!newSquare) break;
+        const occupant = board.getPieceAt(newSquare.id);
         if (occupant) {
           if (occupant.getColor() !== this.getColor()) {
-            moves.push(newPosition);
+            moves.push(newSquare.coords);
           }
           break;
         }
-        moves.push(newPosition);
-        step++;
+        moves.push(newSquare.coords);
+        currentSquare = newSquare;
       }
     }
 

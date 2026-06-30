@@ -1,53 +1,79 @@
 import { DuplicatePiece } from "./duplicate-piece";
-import { Position } from "../position/position";
-import { PlayerColor } from "../players/player-color";
-import { PieceType } from "./piece-type";
-import { Board } from "../board/board";
+import { PieceType, Color, SquareCoords } from "../types";
+import { Board } from "../board";
+import { parseSquareId, translateSquareCoords } from "../utils";
+import { Square } from "../square";
 
 export class Knight extends DuplicatePiece {
-  constructor(color: PlayerColor, kingSide: boolean) {
+  constructor(color: Color, kingSide: boolean) {
     super(color, PieceType.KNIGHT, kingSide);
     switch(this.color) {
-      case PlayerColor.RED:
-        this.position = {row: 1, col: kingSide ? 'j': 'e'};
+      case Color.RED:
+        this.initialSquareId = parseSquareId(1, kingSide ? 10: 5);
         break;
-      case PlayerColor.YELLOW:
-        this.position = {row: 14, col: kingSide ? 'e': 'j'};
+      case Color.YELLOW:
+        this.initialSquareId = parseSquareId(14, kingSide ? 5: 10);
         break;
-      case PlayerColor.BLUE:
-        this.position = {row: kingSide ? 10: 5, col: 'a'};
+      case Color.BLUE:
+        this.initialSquareId = parseSquareId(kingSide ? 10: 5, 1);
         break;
-      case PlayerColor.GREEN:
-        this.position = {row: kingSide ? 5: 10, col: 'n'};
+      case Color.GREEN:
+        this.initialSquareId = parseSquareId(kingSide ? 5: 10, 14);
         break;
     }
   }
 
-  public getPseudoLegalMoves(board: Board): Position[] {
+  public getStandardMoves(board: Board): SquareCoords[] {
     // Knight moves in an L shape: two squares along one axis and one square perpendicular.
     // It can jump over other pieces, so only the destination square matters.
     // The destination is legal if it is on the board and not occupied by a friendly piece.
     // Opponent-occupied squares are valid capture targets.
-    const position = this.getPosition();
-    if (!position) return [];
+    const coords = board.getCoordsOf(this);
+    if (!coords) return [];
 
-    const moves: Position[] = [];
-    const knightMoves: Position[] = [
-      board.translatePosition(position, -2, -1),
-      board.translatePosition(position, -2, 1),
-      board.translatePosition(position, -1, -2),
-      board.translatePosition(position, -1, 2),
-      board.translatePosition(position, 1, -2),
-      board.translatePosition(position, 1, 2),
-      board.translatePosition(position, 2, -1),
-      board.translatePosition(position, 2, 1)
+    const moves: SquareCoords[] = [];
+    const knightSquaresCoords: (SquareCoords | undefined)[] = [
+      translateSquareCoords(
+        coords,
+        { rowDelta: -2, colDelta: -1 }
+      ),
+      translateSquareCoords(
+        coords,
+        { rowDelta: -2, colDelta: 1 }
+      ),
+      translateSquareCoords(
+        coords,
+        { rowDelta: -1, colDelta: -2 }
+      ),
+      translateSquareCoords(
+        coords,
+        { rowDelta: -1, colDelta: 2 }
+      ),
+      translateSquareCoords(
+        coords,
+        { rowDelta: 1, colDelta: -2 }
+      ),
+      translateSquareCoords(
+        coords,
+        { rowDelta: 1, colDelta: 2 }
+      ),
+      translateSquareCoords(
+        coords,
+        { rowDelta: 2, colDelta: -1 }
+      ),
+      translateSquareCoords(
+        coords,
+        { rowDelta: 2, colDelta: 1 }
+      ),
     ];
 
-    for (const move of knightMoves) {
-      if (!board.isValidPosition(move)) continue;
-      const occupant = board.getPieceAt(move);
+    for (const sq of knightSquaresCoords) {
+      if(!sq) continue;
+      const square = board.getSquareByCoords(sq);
+      if(!square) continue;
+      const occupant = board.getPieceAt(square.id);
       if (!occupant || occupant.getColor() !== this.getColor()) {
-        moves.push(move);
+        moves.push(sq);
       }
     }
 

@@ -1,50 +1,54 @@
 import { Piece } from "./piece";
-import { Position } from "../position/position";
-import { PlayerColor } from "../players/player-color";
-import { PieceType } from "./piece-type";;
-import { Board } from "../board/board";
+import { Color, PieceType, SquareCoords } from "../types";;
+import { Board } from "../board";
+import { parseSquareId, translateSquareCoords } from "../utils";
 
 export class King extends Piece {
-  constructor(color: PlayerColor) {
+  constructor(color: Color) {
     super(color, PieceType.KING);
     switch(this.color) {
-      case PlayerColor.RED:
-        this.position = {row: 1, col: 'h'};
+      case Color.RED:
+        this.initialSquareId = parseSquareId(1, 8);
         break;
-      case PlayerColor.YELLOW:
-        this.position = {row: 14, col: 'g'};
+      case Color.YELLOW:
+        this.initialSquareId = parseSquareId(14, 7);
         break;
-      case PlayerColor.BLUE:
-        this.position = {row: 8, col: 'a'};
+      case Color.BLUE:
+        this.initialSquareId = parseSquareId(8, 1);
         break;
-      case PlayerColor.GREEN:
-        this.position = {row: 7, col: 'n'};
+      case Color.GREEN:
+        this.initialSquareId = parseSquareId(7, 14);
         break;
     }
   }
 
-  public getPseudoLegalMoves(board: Board): Position[] {
+  public getStandardMoves(board: Board): SquareCoords[] {
     // King moves one square in any of the eight surrounding directions.
     // It may move onto an empty square or capture an opposing piece.
     // It cannot move onto a square occupied by a friendly piece.
-    const position = this.getPosition();
-    if (!position) return [];
+    const coords = board.getCoordsOf(this);
+    if (!coords) return [];
 
-    const moves: Position[] = [];
+    const squares: SquareCoords[] = [];
     const directionOffsets = [-1, 0, 1];
 
     for (const rowOffset of directionOffsets) {
       for (const colOffset of directionOffsets) {
         if (rowOffset === 0 && colOffset === 0) continue;
-        const newPosition = board.translatePosition(position, rowOffset, colOffset);
-        if (!board.isValidPosition(newPosition)) continue;
-        const occupant = board.getPieceAt(newPosition);
+        const translatedSquare = translateSquareCoords(
+          coords, 
+          { rowDelta: rowOffset, colDelta: colOffset }
+        )
+        if(!translatedSquare) continue;
+        const newSquare = board.getSquareByCoords(translatedSquare);
+        if(!newSquare) continue;
+        const occupant = board.getPieceAt(newSquare.id);
         if (!occupant || occupant.getColor() !== this.getColor()) {
-          moves.push(newPosition);
+          squares.push(newSquare.coords);
         }
       }
     }
 
-    return moves;
+    return squares;
   }
 }

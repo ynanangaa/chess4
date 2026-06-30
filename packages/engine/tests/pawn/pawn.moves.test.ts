@@ -1,40 +1,37 @@
-import { describe, expect, test } from '@jest/globals';
+import { beforeEach, describe, expect, test } from '@jest/globals';
 
-import { Board } from '../../src/board/board';
-import { Pawn } from '../../src/pieces/pawn';
-import { Rook } from '../../src/pieces/rook';
-import { PlayerColor } from '../../src/players/player-color';
-import { Position } from '../../src/position/position';
-import { place } from '../tests-utils';
+import { Board } from '../../src/board';
+import { Pawn } from '../../src/pieces';
+import { Color, SquareCoords } from '../../src/types';
+import { parseSquareCoords } from '../../src/utils';
+import { sortMoves } from '../test-utils';
 
-function sortMoves(moves: Position[]): Position[] {
-    return [...moves].sort((a, b) =>
-        a.row === b.row
-            ? a.col.localeCompare(b.col)
-            : a.row - b.row
-    );
-}
+let board: Board;
+
+beforeEach(() => {
+    board = new Board();
+});
 
 describe("Pawn pseudo legal moves", () => {
 
     describe("Forward movement", () => {
 
         test.each([
-            [PlayerColor.RED, 6, { row: 2, col: "i" }, [{ row: 3, col: "i" }]],
-            [PlayerColor.YELLOW, 6, { row: 13, col: "f" }, [{ row: 12, col: "f" }]],
-            [PlayerColor.BLUE, 6, { row: 6, col: "b" }, [{ row: 6, col: "c" }]],
-            [PlayerColor.GREEN, 6, { row: 9, col: "m" }, [{ row: 9, col: "l" }]],
+            [Color.RED, 6, 113, [parseSquareCoords(114)]],
+            [Color.YELLOW, 6, 82, [parseSquareCoords(81)]],
+            [Color.BLUE, 6, 19, [parseSquareCoords(33)]],
+            [Color.GREEN, 6, 176, [parseSquareCoords(162)]],
         ])(
             "%s pawn moves forward",
-            (color, pawnNum, expectedPosition, expectedMoves) => {
+            (color, pawnNum, expectedSquareId, expectedMoves) => {
 
                 const pawn = new Pawn(color, pawnNum);
 
-                expect(pawn.getPosition()).toEqual(expectedPosition);
+                expect(pawn.getInitialSquareId()).toEqual(expectedSquareId);
 
-                const board = new Board([pawn]);
+                const board2 = new Board([pawn]);
 
-                expect(sortMoves(pawn.getPseudoLegalMoves(board)))
+                expect(sortMoves(pawn.getStandardMoves(board2)))
                     .toEqual(sortMoves(expectedMoves));
             }
         );
@@ -45,12 +42,10 @@ describe("Pawn pseudo legal moves", () => {
 
         test("cannot move if a piece blocks the square ahead", () => {
 
-            const pawn = place(new Pawn(PlayerColor.RED, 6), 6, "f");
-            const blocker = place(new Rook(PlayerColor.RED, true), 7, "f");
+            const pawn = board.setPiece("red-6", 75);
+            const blocker = board.setPiece("R-red-kingside", 76);
 
-            const board = new Board([pawn, blocker]);
-
-            expect(pawn.getPseudoLegalMoves(board)).toEqual([]);
+            expect(pawn?.getStandardMoves(board)).toEqual([]);
 
         });
 
@@ -60,14 +55,12 @@ describe("Pawn pseudo legal moves", () => {
 
         test("captures diagonally left", () => {
 
-            const pawn = place(new Pawn(PlayerColor.BLUE, 6), 6, "f");
-            const enemy = place(new Rook(PlayerColor.YELLOW, true), 7, "g");
+            const pawn = board.setPiece("red-6", 75);
+            const enemy = board.setPiece("R-yellow-kingside", 90);
 
-            const board = new Board([pawn, enemy]);
-
-            expect(sortMoves(pawn.getPseudoLegalMoves(board))).toEqual(
+            expect(sortMoves(pawn!.getStandardMoves(board))).toEqual(
                 sortMoves([
-                    { row: 6, col: "g" },
+                    { row: 7, col: "f" },
                     { row: 7, col: "g" }
                 ])
             );
@@ -76,15 +69,13 @@ describe("Pawn pseudo legal moves", () => {
 
         test("captures diagonally right", () => {
 
-            const pawn = place(new Pawn(PlayerColor.GREEN, 6), 6, "f");
-            const enemy = place(new Rook(PlayerColor.YELLOW, true), 7, "e");
+            const pawn = board.setPiece("red-6", 75);
+            const enemy = board.setPiece("R-yellow-kingside", 62);
 
-            const board = new Board([pawn, enemy]);
-
-            expect(sortMoves(pawn.getPseudoLegalMoves(board))).toEqual(
+            expect(sortMoves(pawn!.getStandardMoves(board))).toEqual(
                 sortMoves([
-                    { row: 6, col: "e" },
-                    { row: 7, col: "e" }
+                    { row: 7, col: "e" },
+                    { row: 7, col: "f" }
                 ])
             );
 
@@ -92,12 +83,10 @@ describe("Pawn pseudo legal moves", () => {
 
         test("cannot capture friendly piece", () => {
 
-            const pawn = place(new Pawn(PlayerColor.RED, 6), 6, "f");
-            const ally = place(new Rook(PlayerColor.RED, true), 7, "g");
+            const pawn = board.setPiece("red-6", 75);
+            const ally = board.setPiece("R-red-kingside", 90);
 
-            const board = new Board([pawn, ally]);
-
-            expect(pawn.getPseudoLegalMoves(board)).toEqual([
+            expect(pawn?.getStandardMoves(board)).toEqual([
                 { row: 7, col: "f" }
             ]);
 
@@ -105,12 +94,10 @@ describe("Pawn pseudo legal moves", () => {
 
         test("cannot capture forward", () => {
 
-            const pawn = place(new Pawn(PlayerColor.YELLOW, 6), 6, "f");
-            const enemy = place(new Rook(PlayerColor.BLUE, true), 5, "f");
+            const pawn = board.setPiece("yellow-6", 75);
+            const enemy = board.setPiece("R-blue-kingside", 74);
 
-            const board = new Board([pawn, enemy]);
-
-            expect(pawn.getPseudoLegalMoves(board)).toEqual([]);
+            expect(pawn?.getStandardMoves(board)).toEqual([]);
 
         });
 
@@ -120,11 +107,9 @@ describe("Pawn pseudo legal moves", () => {
 
         test("never generates positions outside the board", () => {
 
-            const pawn = place(new Pawn(PlayerColor.GREEN, 6), 7, "a");
+            const pawn = board.setPiece("green-6", 6);
 
-            const board = new Board([pawn]);
-
-            expect(pawn.getPseudoLegalMoves(board)).toEqual([]);
+            expect(pawn?.getStandardMoves(board)).toEqual([]);
 
         });
 
