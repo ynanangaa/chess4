@@ -1,34 +1,33 @@
 import { Piece } from "./piece";
-import { Position } from "../position/position";
-import { PlayerColor } from "../players/player-color";
-import { PieceType } from "./piece-type";
-import { Board } from "../board/board";
+import { Color, PieceType, SquareCoords } from "../types";
+import { Board } from "../board";
+import { parseSquareId } from "../utils";
 
 export class Queen extends Piece {
-  constructor(color: PlayerColor) {
+  constructor(color: Color) {
     super(color, PieceType.QUEEN);
     switch(this.color) {
-      case PlayerColor.RED:
-        this.position = {row: 1, col: 'g'};
+      case Color.RED:
+        this.initialSquareId = parseSquareId(1, 7);
         break;
-      case PlayerColor.YELLOW:
-        this.position = {row: 14, col: 'h'};
+      case Color.YELLOW:
+        this.initialSquareId = parseSquareId(14, 8);
         break;
-      case PlayerColor.BLUE:
-        this.position = {row: 7, col: 'a'};
+      case Color.BLUE:
+        this.initialSquareId = parseSquareId(7, 1);
         break;
-      case PlayerColor.GREEN:
-        this.position = {row: 8, col: 'n'};
+      case Color.GREEN:
+        this.initialSquareId = parseSquareId(8, 14);
         break;
     }
   }
 
-  public getPseudoLegalMoves(board: Board): Position[] {
+  public getStandardMoves(board: Board): SquareCoords[] {
     // Queen combines rook and bishop movement: straight lines and diagonals.
     // It may move any number of squares until blocked by another piece.
     // If the blocking piece is an opponent, that square is a legal capture; otherwise movement stops before it.
-    const position = this.getPosition();
-    if (!position) return [];
+    const coords = board.getCoordsOf(this);
+    if (!coords) return [];
 
     return this.getSlidingDirections(board, [
         { rowDelta: -1, colDelta: 0 }, // down

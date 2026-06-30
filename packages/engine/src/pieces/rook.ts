@@ -1,35 +1,34 @@
 import { DuplicatePiece } from "./duplicate-piece";
-import { Position } from "../position/position";
-import { PlayerColor } from "../players/player-color";
-import { PieceType } from "./piece-type";
-import { Board } from "../board/board";
+import { Color, PieceType, SquareCoords } from "../types";
+import { Board } from "../board";
+import { parseSquareId } from "../utils";
 
 export class Rook extends DuplicatePiece {
-  constructor(color: PlayerColor, kingSide: boolean) {
+  constructor(color: Color, kingSide: boolean) {
     super(color, PieceType.ROOK, kingSide);
     switch(this.color) {
-      case PlayerColor.RED:
-        this.position = {row: 1, col: kingSide ? 'k': 'd'};
+      case Color.RED:
+        this.initialSquareId = parseSquareId(1, kingSide ? 11: 4);
         break;
-      case PlayerColor.YELLOW:
-        this.position = {row: 14, col: kingSide ? 'd': 'k'};
+      case Color.YELLOW:
+        this.initialSquareId = parseSquareId(14, kingSide ? 4: 11);
         break;
-      case PlayerColor.BLUE:
-        this.position = {row: kingSide ? 11: 4, col: 'a'};
+      case Color.BLUE:
+        this.initialSquareId = parseSquareId(kingSide ? 11: 4, 1);
         break;
-      case PlayerColor.GREEN:
-        this.position = {row: kingSide ? 4: 11, col: 'n'};
+      case Color.GREEN:
+        this.initialSquareId = parseSquareId(kingSide ? 4: 11, 14);
         break;
     }
   }
 
-  public getPseudoLegalMoves(board: Board): Position[] {
+  public getStandardMoves(board: Board): SquareCoords[] {
     // Rook moves horizontally or vertically across the board.
     // It continues moving square-by-square until it hits the edge or a piece.
     // It can capture an opponent on the first occupied square in a direction.
     // It cannot move beyond any blocking piece.
-    const position = this.getPosition();
-    if (!position) return [];
+    const coords = board.getCoordsOf(this);
+    if (!coords) return [];
 
     return this.getSlidingDirections(board, [
         { rowDelta: -1, colDelta: 0 }, // down

@@ -1,7 +1,6 @@
-import { Position } from "../position/position";
-
 export interface Move {
   pieceId: string;
-  from: Position | null;
-  to: Position;
+  from: number;
+  to: number;
+  // from and to are square ids
 }

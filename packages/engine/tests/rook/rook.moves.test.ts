@@ -1,29 +1,22 @@
-import { describe, expect, test } from '@jest/globals';
+import { beforeEach, describe, expect, test } from '@jest/globals';
 
 import { Board } from '../../src/board/board';
-import { Pawn } from '../../src/pieces/pawn';
-import { Rook } from '../../src/pieces/rook';
-import { PlayerColor } from '../../src/players/player-color';
-import { Position } from '../../src/position/position';
-import { place } from '../tests-utils';
+import { clearBoardExcept, sortMoves } from '../test-utils';
 
-function sortMoves(moves: Position[]): Position[] {
-    return [...moves].sort((a, b) =>
-        a.row === b.row
-            ? a.col.localeCompare(b.col)
-            : a.row - b.row
-    );
-}
+let board: Board;
+
+beforeEach(() => {
+    board = new Board();
+});
 
 describe("Rook pseudo legal moves", () => {
 
-    test("moves freely on an empty board", () => {
+    test("moves freely on an empty area", () => {
 
-        const rook = place(new Rook(PlayerColor.RED, true), 7, "g");
+        const rook = board.setPiece("R-yellow-queenside", 90);
+        clearBoardExcept(board, "R-yellow-queenside");
 
-        const board = new Board([rook]);
-
-        expect(sortMoves(rook.getPseudoLegalMoves(board))).toEqual(sortMoves([
+        expect(sortMoves(rook!.getStandardMoves(board))).toEqual(sortMoves([
             { row: 1, col: "g" },
             { row: 2, col: "g" },
             { row: 3, col: "g" },
@@ -57,17 +50,16 @@ describe("Rook pseudo legal moves", () => {
 
     test("friendly piece blocks movement", () => {
 
-        const rook = place(new Rook(PlayerColor.RED, true), 7, "g");
-        const ally = place(new Pawn(PlayerColor.RED, 1), 10, "g");
+        const rook = board.setPiece("R-yellow-queenside", 90);
+        const ally = board.setPiece("R-yellow-kingside", 93);
+        clearBoardExcept(board, "R-yellow-queenside", "R-yellow-kingside");
 
-        const board = new Board([rook, ally]);
-
-        expect(rook.getPseudoLegalMoves(board)).not.toContainEqual({
+        expect(rook?.getStandardMoves(board)).not.toContainEqual({
             row: 10,
             col: "g"
         });
 
-        expect(rook.getPseudoLegalMoves(board)).not.toContainEqual({
+        expect(rook?.getStandardMoves(board)).not.toContainEqual({
             row: 11,
             col: "g"
         });
@@ -76,17 +68,17 @@ describe("Rook pseudo legal moves", () => {
 
     test("enemy piece can be captured", () => {
 
-        const rook = place(new Rook(PlayerColor.RED, true), 7, "g");
-        const enemy = place(new Pawn(PlayerColor.BLUE, 1), 10, "g");
+        const rook = board.setPiece("R-yellow-queenside", 90);
+        const enemy = board.setPiece("blue-1", 93);
+        clearBoardExcept(board, "R-yellow-queenside", "blue-1");
 
-        const board = new Board([rook, enemy]);
 
-        expect(rook.getPseudoLegalMoves(board)).toContainEqual({
+        expect(rook?.getStandardMoves(board)).toContainEqual({
             row: 10,
             col: "g"
         });
 
-        expect(rook.getPseudoLegalMoves(board)).not.toContainEqual({
+        expect(rook?.getStandardMoves(board)).not.toContainEqual({
             row: 11,
             col: "g"
         });

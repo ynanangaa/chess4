@@ -1,9 +1,9 @@
-import { Board } from "../board/board";
-import { Move } from "../moves/move";
-import { RuleSet } from "../rules/rule-set";
-import { Player } from "../players/player";
-import { PlayerColor } from "../players/player-color";
-import { GameState } from "../states/game-state";
+import { Board } from "../board";
+import { Move } from "../moves";
+import { RuleSet } from "../rules";
+import { Player } from "../players";
+import { Color } from "../types";
+import { GameState } from "./game-state";
 
 export class Game {
   private board: Board;
@@ -15,10 +15,10 @@ export class Game {
     this.board = new Board();
     this.history = [];
     this.players = [
-      new Player("P1", PlayerColor.RED),
-      new Player("P2", PlayerColor.BLUE),
-      new Player("P3", PlayerColor.YELLOW),
-      new Player("P4", PlayerColor.GREEN),
+      new Player("P1", Color.RED),
+      new Player("P2", Color.BLUE),
+      new Player("P3", Color.YELLOW),
+      new Player("P4", Color.GREEN),
     ];
     this.gameState = new GameState();
   }
@@ -29,29 +29,19 @@ export class Game {
     this.history.length = 0;
   }
 
-  /*reset(): void {
-    if (typeof (this.board as any).reset === "function") {
-      // @ts-ignore
-      (this.board as any).reset();
-    } else {
-      this.board = new Board();
-    }
-    this.history = [];
-  }*/
-
-  clone(): Game {
+  /*clone(): Game {
     const g = new Game(this.ruleSet);
     g.board = this.board.clone();
     g.history = this.history.slice();
     return g;
-  }
+  }*/
 
   private updateGameStatus(): void {
     this.gameState = this.ruleSet.getGameState(this);
   }
 
   applyMove(move: Move): boolean {
-    const result = this.board.movePiece(move.pieceId, move.to);
+    const result = this.board.setPiece(move.pieceId, move.to);
     if (result) {
       this.history.push(move);
       this.updateGameStatus();
@@ -72,7 +62,7 @@ export class Game {
     return this.gameState;
   }
 
-  public getCurrentPlayerColor(): PlayerColor {
+  public getCurrentPlayerColor(): Color {
     // determine current player based on history length of a 4-player game
     const colors = this.players.map(player => player.getColor());
     return colors[this.history.length % colors.length];

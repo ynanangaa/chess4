@@ -1,24 +1,15 @@
 import { describe, expect, test } from '@jest/globals';
 
-import { Board } from '../../src/board/board';
-import { Bishop } from '../../src/pieces/bishop';
-import { Pawn } from '../../src/pieces/pawn';
-import { PlayerColor } from '../../src/players/player-color';
-import { Position } from '../../src/position/position';
-import { place } from '../tests-utils';
+import { Board } from '../../src/board';
+import { sortMoves } from '../test-utils';
 
-function sortMoves(moves: Position[]): Position[] {
-  return [...moves].sort((a, b) =>
-    a.row === b.row ? a.col.localeCompare(b.col) : a.row - b.row
-  );
-}
+var board = new Board();
 
 describe('Bishop pseudo legal moves', () => {
-  test('moves diagonally on an empty board', () => {
-    const bishop = place(new Bishop(PlayerColor.RED, true), 7, 'g');
-    const board = new Board([bishop]);
+  test('moves diagonally on an empty area', () => {
+    const bishop = board.setPiece("B-red-kingside", 90);
 
-    const moves = bishop.getPseudoLegalMoves(board);
+    const moves = bishop!.getStandardMoves(board);
 
     expect(moves).toContainEqual({ row: 6, col: 'f' });
     expect(moves).toContainEqual({ row: 5, col: 'e' });
@@ -29,11 +20,10 @@ describe('Bishop pseudo legal moves', () => {
   });
 
   test('stops before a friendly piece', () => {
-    const bishop = place(new Bishop(PlayerColor.RED, true), 7, 'g');
-    const ally = place(new Pawn(PlayerColor.RED, 1), 5, 'e');
-    const board = new Board([bishop, ally]);
+    const bishop = board.setPiece("B-red-kingside", 90);
+    const ally = board.setPiece("Q-red", 60);
 
-    const moves = bishop.getPseudoLegalMoves(board);
+    const moves = bishop?.getStandardMoves(board);
 
     expect(moves).toContainEqual({ row: 6, col: 'f' });
     expect(moves).not.toContainEqual({ row: 5, col: 'e' });
@@ -41,11 +31,10 @@ describe('Bishop pseudo legal moves', () => {
   });
 
   test('captures an enemy piece and stops there', () => {
-    const bishop = place(new Bishop(PlayerColor.RED, true), 7, 'g');
-    const enemy = place(new Pawn(PlayerColor.BLUE, 1), 5, 'e');
-    const board = new Board([bishop, enemy]);
+    const bishop = board.setPiece("B-red-kingside", 90);
+    const enemy = board.setPiece("Q-green", 60);
 
-    const moves = bishop.getPseudoLegalMoves(board);
+    const moves = bishop?.getStandardMoves(board);
 
     expect(moves).toContainEqual({ row: 5, col: 'e' });
     expect(moves).not.toContainEqual({ row: 4, col: 'd' });
