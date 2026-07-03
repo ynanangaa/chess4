@@ -1,15 +1,17 @@
 import { describe, expect, test } from '@jest/globals';
 
 import { Board } from '../../src/board';
+import { buildDuplicatePiece, buildQueen, parseSquareCoords } from '../../src/utils';
+import { Color, PieceType } from '../../src/types';
+import { bishopMoves } from '../../src/moves/bishop-moves';
 import { sortMoves } from '../test-utils';
-
-var board = new Board();
 
 describe('Bishop pseudo legal moves', () => {
   test('moves diagonally on an empty area', () => {
-    const bishop = board.setPiece("B-red-kingside", 90);
+    const bishop = buildDuplicatePiece(Color.RED, PieceType.BISHOP, true);
+    const board = new Board([[bishop], [90]]);
 
-    const moves = bishop!.getStandardMoves(board);
+    const moves = bishopMoves(bishop, board).map(pos => parseSquareCoords(pos));
 
     expect(moves).toContainEqual({ row: 6, col: 'f' });
     expect(moves).toContainEqual({ row: 5, col: 'e' });
@@ -20,10 +22,11 @@ describe('Bishop pseudo legal moves', () => {
   });
 
   test('stops before a friendly piece', () => {
-    const bishop = board.setPiece("B-red-kingside", 90);
-    const ally = board.setPiece("Q-red", 60);
+    const bishop = buildDuplicatePiece(Color.RED, PieceType.BISHOP, true);
+    const ally = buildQueen(Color.RED);
+    const board = new Board([[bishop, ally], [90, 60]]);
 
-    const moves = bishop?.getStandardMoves(board);
+    const moves = bishopMoves(bishop, board).map(pos => parseSquareCoords(pos));
 
     expect(moves).toContainEqual({ row: 6, col: 'f' });
     expect(moves).not.toContainEqual({ row: 5, col: 'e' });
@@ -31,10 +34,11 @@ describe('Bishop pseudo legal moves', () => {
   });
 
   test('captures an enemy piece and stops there', () => {
-    const bishop = board.setPiece("B-red-kingside", 90);
-    const enemy = board.setPiece("Q-green", 60);
+    const bishop = buildDuplicatePiece(Color.RED, PieceType.BISHOP, true);
+    const enemy = buildQueen(Color.GREEN);
+    const board = new Board([[bishop, enemy], [90, 60]]);
 
-    const moves = bishop?.getStandardMoves(board);
+    const moves = bishopMoves(bishop, board).map(pos => parseSquareCoords(pos));
 
     expect(moves).toContainEqual({ row: 5, col: 'e' });
     expect(moves).not.toContainEqual({ row: 4, col: 'd' });

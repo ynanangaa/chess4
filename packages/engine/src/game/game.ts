@@ -25,7 +25,7 @@ export class Game {
 
   // clean up resources if needed
   destroy(): void {
-    this.board.destroy();
+    //this.board.destroy();
     this.history.length = 0;
   }
 
@@ -41,7 +41,7 @@ export class Game {
   }
 
   applyMove(move: Move): boolean {
-    const result = this.board.setPiece(move.pieceId, move.to);
+    const result = this.board.placePiece(move.pieceId, move.to);
     if (result) {
       this.history.push(move);
       this.updateGameStatus();

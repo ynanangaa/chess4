@@ -1,24 +1,45 @@
 import { Board } from "../board";
-import { Color, SquareCoords } from "../types";
-import { Piece } from "../pieces";
+import { Color, PieceType } from "../types";
 import { Move } from "./move";
-import { inverseParseCol, parseSquareId } from "../utils";
+import { pawnMoves } from "./pawn-moves";
+import { queenMoves } from "./queen-moves";
+import { rookMoves } from "./rook-moves";
+import { bishopMoves } from "./bishop-moves";
+import { knightMoves } from "./knight-moves";
+import { kingMoves } from "./king-moves";
 
 export class MoveGenerator {
 
-    private buildMove(board: Board, piece: Piece, destination: SquareCoords): Move {
-        const pieceCoords = board.getCoordsOf(piece);
+    public buildMove(pieceId: string, from: number, destination: number): Move {
         return {
-            pieceId: piece.getId(),
-            from: parseSquareId(
-                pieceCoords!.row,
-                inverseParseCol(pieceCoords!.col)
-            ),
-            to: parseSquareId(
-                destination.row,
-                inverseParseCol(destination.col)
-            ),
+            pieceId: pieceId,
+            from: from,
+            to: destination
         };
+    }
+
+    // Generate moves for a specific piece on the board
+    public generateMovesForPiece(
+        pieceId: string,
+        board: Board
+    ): number[] {
+        const piecePosition = board.getPositionOf(pieceId);
+        if (!piecePosition) return [];
+        const piece = board.getPiece(pieceId)!;
+        switch (piece.type) {
+            case PieceType.KNIGHT:
+                return knightMoves(piece, piecePosition, board);
+            case PieceType.BISHOP:
+                return bishopMoves(piece, board);
+            case PieceType.ROOK:
+                return rookMoves(piece, board);
+            case PieceType.QUEEN:
+                return queenMoves(piece, board);
+            case PieceType.PAWN:
+                return pawnMoves(piece, piecePosition, board);
+            case PieceType.KING:
+                return kingMoves(piece, piecePosition, board);
+        }
     }
 
     public generatePseudoLegalMoves(
@@ -28,16 +49,20 @@ export class MoveGenerator {
         const moves: Move[] = [];
 
         // Get all the occupied squares by the pieces of given player color 
-        const squares = board.getSquares().filter(
-            sq => sq.occupant?.getColor() === color
-        );
+        const squares = board.getOccupiedSquares();
+        const colorSquares = Array.from(squares.entries()).filter(([squareId, pieceId]) => {
+            const piece = board.getPiece(pieceId);
+            return piece?.color === color;
+        });
 
         // Add all the pseudo legal moves from every piece in the resulting array
-        for (const square of squares) {
+        for (const [squareId, pieceId] of colorSquares) {
+            const piece = board.getPiece(pieceId);
+            if (!piece) continue;
 
-            const pseudoLegalMoves = square.occupant!.getStandardMoves(board);
+            const pseudoLegalMoves = this.generateMovesForPiece(pieceId, board);
             for (const destination of pseudoLegalMoves) {
-                moves.push(this.buildMove(board, square.occupant!, destination));
+                moves.push(this.buildMove(pieceId, squareId, destination));
             }
         }
 

@@ -1,15 +1,18 @@
 import { describe, expect, test } from '@jest/globals';
 
 import { Board } from '../../src/board';
+import { buildDuplicatePiece, buildPawn, parseSquareCoords } from '../../src/utils';
+import { Color, PieceType } from '../../src/types';
+import { knightMoves } from '../../src/moves/knight-moves';
 import { sortMoves } from '../test-utils';
-
-var board = new Board();
 
 describe('Knight pseudo legal moves', () => {
   test('returns the 8 L-shaped moves from the center', () => {
-    const knight = board.setPiece("N-red-queenside", 120);
+    const knight = buildDuplicatePiece(Color.RED, PieceType.KNIGHT, false);
+    const board = new Board([[knight], [120]]);
 
-    expect(sortMoves(knight!.getStandardMoves(board))).toEqual(sortMoves([
+    const moves = knightMoves(knight, 120, board).map(pos => parseSquareCoords(pos));
+    expect(sortMoves(moves)).toEqual(sortMoves([
       { row: 7, col: 'h' },
       { row: 7, col: 'j' },
       { row: 8, col: 'g' },
@@ -22,37 +25,42 @@ describe('Knight pseudo legal moves', () => {
   });
 
   test('handles edge positions without leaving the board', () => {
-    const knight = board.setPiece("N-blue-queenside", 42);
+    const knight = buildDuplicatePiece(Color.BLUE, PieceType.KNIGHT, false);
+    const board = new Board([[knight], [42]]);
 
-    expect(sortMoves(knight!.getStandardMoves(board))).toEqual(sortMoves([
-      { row: 2, col: 'f' },
-      { row: 3, col: 'e' },
-    ]));
+    const moves = knightMoves(knight, 42, board).map(pos => parseSquareCoords(pos));
+    // Knight at (row 1, col 'e') can jump to 4 valid squares on this board
+    expect(moves).toHaveLength(4);
+    expect(moves).toContainEqual({ row: 2, col: 'f' });
+    expect(moves).toContainEqual({ row: 3, col: 'e' });
   });
 
   test('does not include corner-adjacent invalid squares', () => {
-    const knight = board.setPiece("N-blue-queenside", 3);
+    const knight = buildDuplicatePiece(Color.BLUE, PieceType.KNIGHT, false);
+    const board = new Board([[knight], [3]]);
 
-    const moves = knight?.getStandardMoves(board);
+    const moves = knightMoves(knight, 3, board).map(pos => parseSquareCoords(pos));
 
     expect(moves).not.toContainEqual({ row: 2, col: 'b' });
     expect(moves).not.toContainEqual({ row: 2, col: 'a' });
   });
 
   test('jumps over pieces and does not capture a friendly piece', () => {
-    const knight = board.setPiece("N-red-kingside", 59);
-    const ally = board.setPiece("red-1", 86);
+    const knight = buildDuplicatePiece(Color.RED, PieceType.KNIGHT, true);
+    const ally = buildPawn(Color.RED, 1);
+    const board = new Board([[knight, ally], [59, 86]]);
 
-    const moves = knight?.getStandardMoves(board);
+    const moves = knightMoves(knight, 59, board).map(pos => parseSquareCoords(pos));
 
     expect(moves).not.toContainEqual({ row: 3, col: 'g' });
   });
 
   test('captures an enemy piece', () => {
-    const knight = board.setPiece("N-red-kingside", 59);
-    const enemy = board.setPiece("blue-1", 86);
+    const knight = buildDuplicatePiece(Color.RED, PieceType.KNIGHT, true);
+    const enemy = buildPawn(Color.BLUE, 1);
+    const board = new Board([[knight, enemy], [59, 86]]);
 
-    const moves = knight?.getStandardMoves(board);
+    const moves = knightMoves(knight, 59, board).map(pos => parseSquareCoords(pos));
 
     expect(moves).toContainEqual({ row: 3, col: 'g' });
   });

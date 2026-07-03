@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, test } from '@jest/globals';
 
 import { Board } from '../../src/board';
-import { Pawn } from '../../src/pieces';
-import { Color, SquareCoords } from '../../src/types';
-import { parseSquareCoords } from '../../src/utils';
+import { buildPawn, buildDuplicatePiece, parseSquareCoords } from '../../src/utils';
+import { Color, SquareCoords, PieceType } from '../../src/types';
+import { pawnMoves } from '../../src/moves/pawn-moves';
 import { sortMoves } from '../test-utils';
 
 let board: Board;
@@ -25,13 +25,11 @@ describe("Pawn pseudo legal moves", () => {
             "%s pawn moves forward",
             (color, pawnNum, expectedSquareId, expectedMoves) => {
 
-                const pawn = new Pawn(color, pawnNum);
+                const pawn = buildPawn(color, pawnNum);
+                board = new Board([[pawn], [expectedSquareId]]);
 
-                expect(pawn.getInitialSquareId()).toEqual(expectedSquareId);
-
-                const board2 = new Board([pawn]);
-
-                expect(sortMoves(pawn.getStandardMoves(board2)))
+                const moves = pawnMoves(pawn, expectedSquareId, board).map(pos => parseSquareCoords(pos));
+                expect(sortMoves(moves))
                     .toEqual(sortMoves(expectedMoves));
             }
         );
@@ -42,10 +40,12 @@ describe("Pawn pseudo legal moves", () => {
 
         test("cannot move if a piece blocks the square ahead", () => {
 
-            const pawn = board.setPiece("red-6", 75);
-            const blocker = board.setPiece("R-red-kingside", 76);
+            const pawn = buildPawn(Color.RED, 6);
+            const blocker = buildDuplicatePiece(Color.RED, PieceType.ROOK, true);
+            board = new Board([[pawn, blocker], [75, 76]]);
 
-            expect(pawn?.getStandardMoves(board)).toEqual([]);
+            const moves = pawnMoves(pawn, 75, board).map(pos => parseSquareCoords(pos));
+            expect(moves).toEqual([]);
 
         });
 
@@ -55,10 +55,12 @@ describe("Pawn pseudo legal moves", () => {
 
         test("captures diagonally left", () => {
 
-            const pawn = board.setPiece("red-6", 75);
-            const enemy = board.setPiece("R-yellow-kingside", 90);
+            const pawn = buildPawn(Color.RED, 6);
+            const enemy = buildDuplicatePiece(Color.YELLOW, PieceType.ROOK, true);
+            board = new Board([[pawn, enemy], [75, 90]]);
 
-            expect(sortMoves(pawn!.getStandardMoves(board))).toEqual(
+            const moves = pawnMoves(pawn, 75, board).map(pos => parseSquareCoords(pos));
+            expect(sortMoves(moves)).toEqual(
                 sortMoves([
                     { row: 7, col: "f" },
                     { row: 7, col: "g" }
@@ -69,10 +71,12 @@ describe("Pawn pseudo legal moves", () => {
 
         test("captures diagonally right", () => {
 
-            const pawn = board.setPiece("red-6", 75);
-            const enemy = board.setPiece("R-yellow-kingside", 62);
+            const pawn = buildPawn(Color.RED, 6);
+            const enemy = buildDuplicatePiece(Color.YELLOW, PieceType.ROOK, true);
+            board = new Board([[pawn, enemy], [75, 62]]);
 
-            expect(sortMoves(pawn!.getStandardMoves(board))).toEqual(
+            const moves = pawnMoves(pawn, 75, board).map(pos => parseSquareCoords(pos));
+            expect(sortMoves(moves)).toEqual(
                 sortMoves([
                     { row: 7, col: "e" },
                     { row: 7, col: "f" }
@@ -83,10 +87,12 @@ describe("Pawn pseudo legal moves", () => {
 
         test("cannot capture friendly piece", () => {
 
-            const pawn = board.setPiece("red-6", 75);
-            const ally = board.setPiece("R-red-kingside", 90);
+            const pawn = buildPawn(Color.RED, 6);
+            const ally = buildDuplicatePiece(Color.RED, PieceType.ROOK, true);
+            board = new Board([[pawn, ally], [75, 90]]);
 
-            expect(pawn?.getStandardMoves(board)).toEqual([
+            const moves = pawnMoves(pawn, 75, board).map(pos => parseSquareCoords(pos));
+            expect(moves).toEqual([
                 { row: 7, col: "f" }
             ]);
 
@@ -94,10 +100,12 @@ describe("Pawn pseudo legal moves", () => {
 
         test("cannot capture forward", () => {
 
-            const pawn = board.setPiece("yellow-6", 75);
-            const enemy = board.setPiece("R-blue-kingside", 74);
+            const pawn = buildPawn(Color.YELLOW, 6);
+            const enemy = buildDuplicatePiece(Color.BLUE, PieceType.ROOK, true);
+            board = new Board([[pawn, enemy], [75, 74]]);
 
-            expect(pawn?.getStandardMoves(board)).toEqual([]);
+            const moves = pawnMoves(pawn, 75, board).map(pos => parseSquareCoords(pos));
+            expect(moves).toEqual([]);
 
         });
 
@@ -107,9 +115,11 @@ describe("Pawn pseudo legal moves", () => {
 
         test("never generates positions outside the board", () => {
 
-            const pawn = board.setPiece("green-6", 6);
+            const pawn = buildPawn(Color.GREEN, 6);
+            board = new Board([[pawn], [6]]);
 
-            expect(pawn?.getStandardMoves(board)).toEqual([]);
+            const moves = pawnMoves(pawn, 6, board).map(pos => parseSquareCoords(pos));
+            expect(moves).toEqual([]);
 
         });
 

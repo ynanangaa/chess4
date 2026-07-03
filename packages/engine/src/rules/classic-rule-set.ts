@@ -1,10 +1,9 @@
 import { RuleSet } from "./rule-set";
 import { Game, GameState } from "../game";
-import { Move, MoveGenerator } from "../moves";
-import { Color, SquareCoords } from "../types";
-import { Pawn } from "../pieces/pawn";
+import { forwardDirectionOffsets, Move, MoveGenerator } from "../moves";
+import { Color, Piece, PieceType, SquareCoords } from "../types";
 import { EN_PASSANT_SQUARES_IDS } from "./en-passant-squares-ids";
-import { inverseParseCol, parseSquare, parseSquareId } from "../utils";
+import { Board } from "../board";
 
 export class ClassicRuleSet implements RuleSet {
 
@@ -24,91 +23,67 @@ export class ClassicRuleSet implements RuleSet {
 
     getLegalMoves(game: Game, pieceId: string): Move[] {
         const board = game.getBoard();
-        const pieceSquare = board.getSquareOfPiece(pieceId);
-        const selectedPiece = pieceSquare?.occupant;
+        const selectedPiece = board.getPiece(pieceId);
         if (!selectedPiece) return [];
+        const from = board.getPositionOf(pieceId)!;
 
-        const from = pieceSquare.coords;
-        if (!from) return [];
-
-        const pseudoLegalMoves = selectedPiece.getStandardMoves(game.getBoard());
-        const legalSquares = selectedPiece instanceof Pawn
-            ? this.getPawnLegalSquares(game, selectedPiece, pseudoLegalMoves, from)
+        const pseudoLegalMoves = this.moveGenerator.generateMovesForPiece(pieceId, board);
+        const legalPawnSquares = selectedPiece.type === PieceType.PAWN
+            ? this.getPawnLegalSquares(board, selectedPiece, pseudoLegalMoves, from)
             : pseudoLegalMoves;
 
-        return legalSquares.map(to => 
-            ({ pieceId: pieceId,
-                from: pieceSquare.id,
-                to: parseSquareId(
-                    to.row, 
-                    inverseParseCol(to.col)
-                )
-            })
+        return legalPawnSquares.map(to => 
+            this.moveGenerator.buildMove(pieceId, from, to)
         );
     }
 
-    private getPawnLegalSquares(game: Game, pawn: Pawn, pseudoLegalMoves: SquareCoords[], from: SquareCoords): SquareCoords[] {
+    private getPawnLegalSquares(board: Board, pawn: Piece, pseudoLegalMoves: number[], from: number): number[] {
         const legalSquares = [...pseudoLegalMoves];
-        const direction = pawn.getForwardDirection();
+        const direction = forwardDirectionOffsets(pawn.color);
 
-        if (this.canDoubleSteps(game, pawn.getColor(), pawn.getId())) {
-            const oneStepSquare = parseSquare(
-                from.row + direction.rowDelta,
-                inverseParseCol(from.col) + direction.colDelta
-            );
-            const doubleStepSquare = parseSquare(
-                oneStepSquare.coords.row + direction.rowDelta,
-                inverseParseCol(oneStepSquare.coords.col) + direction.colDelta
-            );
+        if (this.canDoubleSteps(board, pawn.color, pawn.id)) {
+            const oneStepSquare = from + direction;
+            const doubleStepSquare = oneStepSquare + direction;
 
             if (
-                game.getBoard().squareExists(oneStepSquare.id) &&
-                game.getBoard().squareExists(doubleStepSquare.id) &&
-                !game.getBoard().isOccupied(oneStepSquare.id) &&
-                !game.getBoard().isOccupied(doubleStepSquare.id)
+                board.isValidSquare(oneStepSquare) &&
+                board.isValidSquare(doubleStepSquare) &&
+                !board.isOccupied(oneStepSquare) &&
+                !board.isOccupied(doubleStepSquare)
             ) {
-                legalSquares.push(doubleStepSquare.coords);
+                legalSquares.push(doubleStepSquare);
             }
         }
 
         return legalSquares;
     }
 
-    canCastle(game: Game, player: Color, kingSide: boolean): boolean {
+    canCastle(board: Board, player: Color, kingSide: boolean): boolean {
         // Implement the logic to check if the king of the given player can castle on the given side
         return false; // Placeholder implementation
     }
 
-    canDoubleSteps(game: Game, player: Color, pawnId: string): boolean {
-        const board = game.getBoard();
-        const pawnSquare = board.getSquareOfPiece(pawnId);
-        const pawn = pawnSquare?.occupant;
-        const coords = board.getCoordsOf(pawn!);
-
-        if (!coords) return false;
+    canDoubleSteps(board: Board, player: Color, pawnId: string): boolean {
+        const pawnPos = board.getPositionOf(pawnId)!;
 
         switch (player) {
             case Color.RED:
-                return coords.row === 2;
+                return pawnPos % 14 + 1 === 2;
             case Color.YELLOW:
-                return coords.row === 13;
+                return pawnPos % 14 + 1 === 13;
             case Color.BLUE:
-                return coords.col === 'b';
+                return Math.trunc(pawnPos / 14) + 1 === 2;
             case Color.GREEN:
-                return coords.col === 'm';
+                return Math.trunc(pawnPos / 14) + 1 === 13;
             default:
                 return false;
         }
     }
 
-    canEnPassant(game: Game, pawnId: string): boolean {
-        const board = game.getBoard();
-        const pawnSquare = board.getSquareOfPiece(pawnId);
-        const pawn = pawnSquare?.occupant;
+    canEnPassant(board: Board, pawnId: string): boolean {
+        const pawnPos = board.getPositionOf(pawnId)!;
 
-        if (!pawnSquare) return false;
-
-        return EN_PASSANT_SQUARES_IDS.has(pawnSquare.id);
+        return EN_PASSANT_SQUARES_IDS.has(pawnPos);
     }
 
     getGameState(game: Game): GameState {

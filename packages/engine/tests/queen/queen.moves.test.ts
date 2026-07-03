@@ -1,20 +1,17 @@
-import { beforeEach, describe, expect, test } from '@jest/globals';
+import { describe, expect, test } from '@jest/globals';
 
 import { Board } from '../../src/board';
-import { clearBoardExcept, sortMoves } from '../test-utils';
-
-let board: Board;
-
-beforeEach(() => {
-  board = new Board();
-});
+import { buildQueen, buildDuplicatePiece, parseSquareCoords } from '../../src/utils';
+import { Color, PieceType } from '../../src/types';
+import { queenMoves } from '../../src/moves/queen-moves';
+import { sortMoves } from '../test-utils';
 
 describe('Queen pseudo legal moves', () => {
   test('moves horizontally, vertically, and diagonally on an empty area', () => {
-    const queen = board.setPiece("Q-red", 90);
-    clearBoardExcept(board, "Q-red");
+    const queen = buildQueen(Color.RED);
+    const board = new Board([[queen], [90]]);
 
-    const moves = queen!.getStandardMoves(board);
+    const moves = queenMoves(queen, board).map(pos => parseSquareCoords(pos));
 
     expect(moves).toContainEqual({ row: 1, col: 'g' });
     expect(moves).toContainEqual({ row: 7, col: 'f' });
@@ -26,22 +23,22 @@ describe('Queen pseudo legal moves', () => {
   });
 
   test('stops before a friendly piece', () => {
-    const queen = board.setPiece("Q-red", 90);
-    const ally = board.setPiece("N-red-queenside", 88);
-    clearBoardExcept(board, "Q-red", "N-red-queenside");
+    const queen = buildQueen(Color.RED);
+    const ally = buildDuplicatePiece(Color.RED, PieceType.KNIGHT, false);
+    const board = new Board([[queen, ally], [90, 88]]);
 
-    const moves = queen?.getStandardMoves(board);
+    const moves = queenMoves(queen, board).map(pos => parseSquareCoords(pos));
 
     expect(moves).not.toContainEqual({ row: 5, col: 'g' });
     expect(moves).not.toContainEqual({ row: 4, col: 'g' });
   });
 
   test('captures an enemy piece and stops there', () => {
-    const queen = board.setPiece("Q-red", 90);
-    const enemy = board.setPiece("N-blue-kingside", 88);
-    clearBoardExcept(board, "Q-red", "N-blue-kingside");
+    const queen = buildQueen(Color.RED);
+    const enemy = buildDuplicatePiece(Color.BLUE, PieceType.KNIGHT, true);
+    const board = new Board([[queen, enemy], [90, 88]]);
 
-    const moves = queen?.getStandardMoves(board);
+    const moves = queenMoves(queen, board).map(pos => parseSquareCoords(pos));
 
     expect(moves).toContainEqual({ row: 5, col: 'g' });
     expect(moves).not.toContainEqual({ row: 4, col: 'g' });

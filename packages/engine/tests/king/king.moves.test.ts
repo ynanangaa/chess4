@@ -1,7 +1,10 @@
 import { beforeEach, describe, expect, test } from '@jest/globals';
 
 import { Board } from '../../src/board';
-import { clearBoardExcept, sortMoves } from '../test-utils';
+import { buildKing, buildPawn, parseSquareCoords } from '../../src/utils';
+import { Color } from '../../src/types';
+import { kingMoves } from '../../src/moves/king-moves';
+import { sortMoves } from '../test-utils';
 
 let board: Board;
 
@@ -11,10 +14,11 @@ beforeEach(() => {
 
 describe('King pseudo legal moves', () => {
   test('returns the 8 surrounding squares from the center', () => {
-    const king = board.setPiece("K-red", 59);
-    clearBoardExcept(board, "K-red");
+    const king = buildKing(Color.RED);
+    board = new Board([[king], [59]]);
 
-    expect(sortMoves(king!.getStandardMoves(board))).toEqual(sortMoves([
+    const moves = kingMoves(king, 59, board).map(pos => parseSquareCoords(pos));
+    expect(sortMoves(moves)).toEqual(sortMoves([
       { row: 3, col: 'd' },
       { row: 3, col: 'e' },
       { row: 3, col: 'f' },
@@ -27,21 +31,23 @@ describe('King pseudo legal moves', () => {
   });
 
   test('handles edge positions without including invalid squares', () => {
-    const king = board.setPiece("K-red", 42);
-    clearBoardExcept(board, "K-red");
+    const king = buildKing(Color.RED);
+    board = new Board([[king], [42]]);
 
-    expect(sortMoves(king!.getStandardMoves(board))).toEqual(sortMoves([
+    const moves = kingMoves(king, 42, board).map(pos => parseSquareCoords(pos));
+    expect(sortMoves(moves)).toEqual(sortMoves([
       { row: 1, col: 'e' },
       { row: 2, col: 'd' },
       { row: 2, col: 'e' },
+      { row: 14, col: 'd' },
     ]));
   });
 
   test('does not include corner-adjacent invalid squares', () => {
-    const king = board.setPiece("K-red", 31);
-    clearBoardExcept(board, "K-red");
+    const king = buildKing(Color.RED);
+    board = new Board([[king], [31]]);
 
-    const moves = king?.getStandardMoves(board);
+    const moves = kingMoves(king, 31, board).map(pos => parseSquareCoords(pos));
 
     expect(moves).not.toContainEqual({ row: 3, col: 'c' });
     expect(moves).not.toContainEqual({ row: 2, col: 'c' });
@@ -49,21 +55,21 @@ describe('King pseudo legal moves', () => {
   });
 
   test('does not move onto a friendly piece', () => {
-    const king = board.setPiece("K-red", 59);
-    const ally = board.setPiece("red-1", 60);
-    clearBoardExcept(board, "K-red", "red-1");
+    const king = buildKing(Color.RED);
+    const ally = buildPawn(Color.RED, 1);
+    board = new Board([[king, ally], [59, 60]]);
 
-    const moves = king?.getStandardMoves(board);
+    const moves = kingMoves(king, 59, board).map(pos => parseSquareCoords(pos));
 
     expect(moves).not.toContainEqual({ row: 5, col: 'e' });
   });
 
   test('captures an enemy piece', () => {
-    const king = board.setPiece("K-red", 59);
-    const enemy = board.setPiece("blue-1", 60);
-    clearBoardExcept(board, "K-red", "blue-1");
+    const king = buildKing(Color.RED);
+    const enemy = buildPawn(Color.BLUE, 1);
+    board = new Board([[king, enemy], [59, 60]]);
 
-    const moves = king?.getStandardMoves(board);
+    const moves = kingMoves(king, 59, board).map(pos => parseSquareCoords(pos));
 
     expect(moves).toContainEqual({ row: 5, col: 'e' });
   });

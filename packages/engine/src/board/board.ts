@@ -1,102 +1,108 @@
-import { Piece } from '../pieces/piece';
-import { Square } from '../square';
-import { SquareCoords } from '../types';
-import { initializeBoardSquares, inverseParseCol, isSamePiece, parseSquareFrom, parseSquareId } from '../utils';
+import { Piece } from '../types/piece';
+import { Color } from '../types';
+import { initializePieces, validBoardSquares } from '../utils';
 
 export class Board {
-  // pieces keyed by id
-  private squares: Map<number, Square> = new Map();
+  // pieces keyed by piece id
+  private pieces: Map<string, Piece> = new Map();
+  // piece positions keyed by piece id
+  private piecePositions: Map<string, number> = new Map();
+  // occupied squares keyed by position : reverse mapping of piecePositions
+  private occupiedSquares: Map<number, string> = new Map();
+  // validSquares : set of valid square ids on the board
+  private validSquares: Set<number> = validBoardSquares();
 
-  constructor(initialPieces?: Piece[]) {
-    if (initialPieces) 
-      initialPieces.forEach(p => 
-        this.squares.set(
-          p.getInitialSquareId(),
-          parseSquareFrom(p.getInitialSquareId())
-        )
-      )
-    const initializedSquares = initializeBoardSquares();
-    initializedSquares.forEach(square => this.squares.set(square.id, square));
-  }
-
-  // Return all pieces
-  public getSquares(): Square[] {
-    return Array.from(this.squares.values());
-  }
-
-  // Find piece at a position
-  public getSquare(id: number): Square | undefined {
-    return this.squares.get(id);
-  }
-
-  // Get the square coords a piece
-  public getCoordsOf(piece: Piece): SquareCoords | undefined {
-    const square = this.getSquares().find(sq => isSamePiece(piece, sq.occupant));
-    return square?.coords;
-  }
-
-  // Remove piece by id (marks captured by setting position=null) and returns removed piece
-  /*removePiece(id: string): Piece | undefined {
-    const p = this.pieces.get(id);
-    if (!p) return undefined;
-    const copy = { ...p, position: null };
-    this.pieces.set(id, copy);
-    return { ...copy };
-  }*/
-
-  // Is square occupied by a living piece
-  public isOccupied(id: number): boolean {
-    return this.getPieceAt(id) ? true: false;
-  }
-
-  public getPieceAt(id: number): Piece | undefined {
-    const square = this.getSquare(id);
-    return square?.occupant;
-  }
-
-  public getPieces(): Piece[] {
-    return this.getSquares()
-      .map(s => s.occupant)
-      .filter(p => p !== undefined)
-  }
-
-  public getSquareOfPiece(pieceId: string): Square | undefined {
-    const squares = this.getSquares();
-    const square = squares.find(s => s.occupant?.getId() === pieceId);
-    return square!;
-  }
-
-  // Move a piece to a target position.
-  public setPiece(pieceId: string, to: number): Piece | undefined {
-    const sq = this.getSquareOfPiece(pieceId); // Start square
-    if (!sq) return undefined;
-
-    const moved = sq.occupant!;
-    const square = this.squares.get(to); // Destination square
-    if (!square) return undefined;
-    this.squares.set(sq.id, {...sq, occupant: undefined}) // Empty start square
-    this.squares.set(to, {...square, occupant: moved}) // Set destination square with piece
-    return moved;
-  }
-
-  public getSquareByCoords(coords: SquareCoords): Square | undefined {
-    const id = parseSquareId(
-      coords.row,
-      inverseParseCol(coords.col)
+  constructor(initialPieces?: [Piece[], number[]]) {
+    let [pieces, initialSquareIds]: [Piece[], number[]] = [[], []];
+    if (initialPieces) {
+      [pieces, initialSquareIds] = initialPieces;
+    } else {
+      [pieces, initialSquareIds] = [
+        ...initializePieces(Color.RED),
+        ...initializePieces(Color.BLUE),
+        ...initializePieces(Color.YELLOW),
+        ...initializePieces(Color.GREEN)
+      ];
+    }
+    // Initialize pieces
+    pieces.forEach((p, i) => 
+      this.pieces.set(p.id, p)
+    )
+    // Initialize piece positions and occupied squares
+    pieces.forEach((p, i) => 
+      this.piecePositions.set(p.id, initialSquareIds[i])
     );
-    return this.getSquare(id);
-}
+    pieces.forEach((p, i) => 
+      this.occupiedSquares.set(initialSquareIds[i], p.id)
+    );
+  }
 
-  // Does the square exists on the board (14 x 14, with some exceptions)
-  public squareExists(id: number): boolean {
-    // Check if position is not in the excluded squares
-    return this.squares.has(id);
+  // Return all occupied squares on the board
+  public getOccupiedSquares(): Map<number, string> {
+    return this.occupiedSquares;;
+  }
+
+  // Return piece by id
+  public getPiece(id: string): Piece | undefined {
+    return this.pieces.get(id);
+  }
+
+  // Return piece at a square id
+  public getPieceAt(squareId: number): Piece | undefined {
+    const pieceId = this.occupiedSquares.get(squareId);
+    if (!pieceId) return undefined;
+    return this.pieces.get(pieceId);
+  }
+
+  // Return position of a piece
+  public getPositionOf(pieceId: string): number | undefined {
+    return this.piecePositions.get(pieceId);
+  }
+
+  // Check if a square is occupied
+  public isOccupied(squareId: number): boolean {
+    return this.occupiedSquares.has(squareId);
+  }
+
+  // Check if a square exists on the board
+  public isValidSquare(id: number): boolean {
+    return this.validSquares.has(id);
+  }
+
+  /* Place a piece on the board at a specific position
+   * If the piece already exists, it will be moved to the new position.
+   * If the position is already occupied, the existing piece will be replaced.
+  */
+  public placePiece(pieceId: string, squareId: number): Piece | undefined {
+    const piece = this.pieces.get(pieceId);
+    if (!piece) return undefined;
+
+    // Remove piece from current position
+    const currentSquareId = this.piecePositions.get(pieceId);
+    if (currentSquareId !== undefined) {
+      this.occupiedSquares.delete(currentSquareId);
+      this.piecePositions.delete(pieceId);
+    }
+
+    // Remove any existing piece at the new position
+    const existingPieceId = this.occupiedSquares.get(squareId);
+    if (existingPieceId !== undefined) {
+      this.occupiedSquares.delete(squareId);
+      this.piecePositions.delete(existingPieceId);
+      this.pieces.delete(existingPieceId);
+    }
+
+    // Set piece at new position
+    this.piecePositions.set(pieceId, squareId);
+    this.occupiedSquares.set(squareId, pieceId);
+
+    return piece;
   }
 
   // Clear board
-  public destroy(): void {
+  /*public destroy(): void {
     this.squares.clear();
-  }
+  }*/
 
   // Clone board
   /*clone(): Board {
