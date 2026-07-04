@@ -1,9 +1,6 @@
 import { beforeEach, describe, expect, test } from '@jest/globals';
 
-import { Board } from '../../src/board';
-import { buildKing, buildPawn, parseSquareCoords } from '../../src/utils';
-import { Color } from '../../src/types';
-import { kingMoves } from '../../src/moves/king-moves';
+import { Board, buildKing, buildPawn, parseSquareCoords, Color, kingMoves } from '../../src';
 import { sortMoves } from '../test-utils';
 
 let board: Board;

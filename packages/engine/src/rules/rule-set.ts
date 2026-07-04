@@ -1,6 +1,6 @@
 import { Game } from '../game/game';
 import { Move } from '../moves/move';
-import { Color } from '../types';
+import { Color, Piece } from '../types';
 import { GameState } from '../game/game-state';
 import { Board } from '../board';
 
@@ -12,16 +12,16 @@ export interface RuleSet {
   getCurrentPlayer(game: Game): Color;
 
   // Get legal moves for a piece on the board
-  getLegalMoves(game: Game, pieceId: string): Move[];
+  getLegalMoves(pieceId: string, game: Game): Move[];
 
   // Return true if the king of the given color can castle on the given side (kingSide=true for kingside, false for queenside)
-  canCastle(board: Board, player: Color, kingSide: boolean): boolean;
+  getCastleMoves(player: Color, game: Game): Move[];
 
   // Return true if the pawn of the given id can move two squares forward, for the given player color
-  canDoubleSteps(board: Board, player: Color, pawnId: string): boolean;
+  canDoubleSteps(pawn: Piece, from: number, board: Board): boolean;
 
   // Return true if a pawn of the given id can take en passant, for the given player color
-  canEnPassant(board: Board, pawnId: string): boolean;
+  getEnPassantMove(pawn: Piece, from: number, game: Game): Move | undefined;
 
   // Calculate and return the game state
   getGameState(game: Game): GameState;

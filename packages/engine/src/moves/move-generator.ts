@@ -1,5 +1,5 @@
 import { Board } from "../board";
-import { Color, PieceType } from "../types";
+import { Color, Piece, PieceType } from "../types";
 import { Move } from "./move";
 import { pawnMoves } from "./pawn-moves";
 import { queenMoves } from "./queen-moves";
@@ -10,22 +10,28 @@ import { kingMoves } from "./king-moves";
 
 export class MoveGenerator {
 
-    public buildMove(pieceId: string, from: number, destination: number): Move {
+    public buildMove(
+        pieceId: string,
+        from: number,
+        destination: number,
+        castle?: "kingside" | "queenside",
+        enPassant?: true
+    ): Move {
         return {
             pieceId: pieceId,
             from: from,
-            to: destination
+            to: destination,
+            castle: castle,
+            enPassant: enPassant
         };
     }
 
     // Generate moves for a specific piece on the board
     public generateMovesForPiece(
-        pieceId: string,
+        piece: Piece,
         board: Board
     ): number[] {
-        const piecePosition = board.getPositionOf(pieceId);
-        if (!piecePosition) return [];
-        const piece = board.getPiece(pieceId)!;
+        const piecePosition = board.getPositionOf(piece.id)!;
         switch (piece.type) {
             case PieceType.KNIGHT:
                 return knightMoves(piece, piecePosition, board);
@@ -42,25 +48,45 @@ export class MoveGenerator {
         }
     }
 
+    public generateAllOpponentsMoves(
+        board: Board,
+        color: Color
+    ): Set<number> {
+
+        const opponentsMoves: Set<number> = new Set();
+        // Filter to keep opponents colors
+        const oppColors = [
+            Color.RED,
+            Color.BLUE,
+            Color.YELLOW,
+            Color.GREEN
+        ].filter(c => c !== color);
+
+        for (const c of oppColors) {
+            const oppMoves = this.generatePseudoLegalMoves(board, c);
+            for (const move of oppMoves) {
+                opponentsMoves.add(move.to);
+            }
+
+        }
+        return opponentsMoves;
+    }
+
     public generatePseudoLegalMoves(
         board: Board,
         color: Color
     ): Move[] {
         const moves: Move[] = [];
 
-        // Get all the occupied squares by the pieces of given player color 
-        const squares = board.getOccupiedSquares();
-        const colorSquares = Array.from(squares.entries()).filter(([squareId, pieceId]) => {
-            const piece = board.getPiece(pieceId);
-            return piece?.color === color;
-        });
+        // Get all the pieces and squares of given player color 
+        const colorSquares = board.getOccupiedSquaresByColor(color);
 
         // Add all the pseudo legal moves from every piece in the resulting array
         for (const [squareId, pieceId] of colorSquares) {
             const piece = board.getPiece(pieceId);
             if (!piece) continue;
 
-            const pseudoLegalMoves = this.generateMovesForPiece(pieceId, board);
+            const pseudoLegalMoves = this.generateMovesForPiece(piece, board);
             for (const destination of pseudoLegalMoves) {
                 moves.push(this.buildMove(pieceId, squareId, destination));
             }

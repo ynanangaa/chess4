@@ -1,9 +1,10 @@
 import { RuleSet } from "./rule-set";
 import { Game, GameState } from "../game";
-import { forwardDirectionOffsets, Move, MoveGenerator } from "../moves";
-import { Color, Piece, PieceType, SquareCoords } from "../types";
+import { castleDirectionOffset, forwardDirectionOffsets, Move, MoveGenerator } from "../moves";
+import { Color, Piece, PieceType } from "../types";
 import { EN_PASSANT_SQUARES_IDS } from "./en-passant-squares-ids";
 import { Board } from "../board";
+import { parseSquareId } from "../utils";
 
 export class ClassicRuleSet implements RuleSet {
 
@@ -21,69 +22,125 @@ export class ClassicRuleSet implements RuleSet {
         return Color.RED; // Placeholder implementation
     }
 
-    getLegalMoves(game: Game, pieceId: string): Move[] {
+    getLegalMoves(pieceId: string, game: Game): Move[] {
         const board = game.getBoard();
         const selectedPiece = board.getPiece(pieceId);
         if (!selectedPiece) return [];
         const from = board.getPositionOf(pieceId)!;
 
-        const pseudoLegalMoves = this.moveGenerator.generateMovesForPiece(pieceId, board);
-        const legalPawnSquares = selectedPiece.type === PieceType.PAWN
-            ? this.getPawnLegalSquares(board, selectedPiece, pseudoLegalMoves, from)
-            : pseudoLegalMoves;
+        const pseudoLegalMoves = this.moveGenerator.generateMovesForPiece(selectedPiece, board);
 
-        return legalPawnSquares.map(to => 
+        let enpassantMove: Move | undefined = undefined;
+        if (selectedPiece.type === PieceType.PAWN) {
+            const doubleStep = this.getPawnDoubleStep(selectedPiece, from, board);
+            if(doubleStep) pseudoLegalMoves.push(doubleStep);
+            const enPassant = this.getEnPassantMove(selectedPiece, from, game);
+            if(enPassant) enpassantMove = enPassant;
+        }
+        const castleMoves: Move[] = [];
+        if (selectedPiece.type === PieceType.KING) {
+            const castle = this.getCastleMoves(selectedPiece.color, game);
+            castleMoves.push(...castle)
+
+        }
+        const moves = pseudoLegalMoves.map(to => 
             this.moveGenerator.buildMove(pieceId, from, to)
         );
+        if(enpassantMove) moves.push(enpassantMove);
+        moves.push(...castleMoves);
+
+        return moves;
     }
 
-    private getPawnLegalSquares(board: Board, pawn: Piece, pseudoLegalMoves: number[], from: number): number[] {
-        const legalSquares = [...pseudoLegalMoves];
+    private getPawnDoubleStep(pawn: Piece, from: number, board: Board): number | undefined {
         const direction = forwardDirectionOffsets(pawn.color);
 
-        if (this.canDoubleSteps(board, pawn.color, pawn.id)) {
+        if (this.canDoubleSteps(pawn, from, board)) {
             const oneStepSquare = from + direction;
             const doubleStepSquare = oneStepSquare + direction;
 
             if (
                 board.isValidSquare(oneStepSquare) &&
-                board.isValidSquare(doubleStepSquare) &&
                 !board.isOccupied(oneStepSquare) &&
+                board.isValidSquare(doubleStepSquare) &&
                 !board.isOccupied(doubleStepSquare)
             ) {
-                legalSquares.push(doubleStepSquare);
+                return doubleStepSquare;
             }
         }
 
-        return legalSquares;
+        return undefined;
     }
 
-    canCastle(board: Board, player: Color, kingSide: boolean): boolean {
-        // Implement the logic to check if the king of the given player can castle on the given side
-        return false; // Placeholder implementation
+    public getCastleMoves(player: Color, game: Game): Move[] {
+        const castle: Move[] = [];
+        const board = game.getBoard();
+        const hasKingMoved = game.hasPieceMoved(`K-${player}`);
+        const from = board.getPositionOf(`K-${player}`)!;
+        for (const kingSide of [true, false]) {
+            const side = kingSide? "kingside": "queenside";
+            const hasRookMoved = game.hasPieceMoved(
+                `R-${player}-${kingSide? "kingside": "queenside"}`
+            )
+            if (!hasKingMoved && !hasRookMoved) {
+                const allOpponentsMoves = this.moveGenerator.generateAllOpponentsMoves(board, player);
+                const direction = castleDirectionOffset(player, kingSide);
+                const oneStep = from + direction;
+                const doubleStep = oneStep + direction;
+                if (!board.isOccupied(oneStep) &&
+                    !allOpponentsMoves.has(oneStep) &&
+                    !board.isOccupied(doubleStep) &&
+                    !allOpponentsMoves.has(doubleStep)) {
+                    castle.push(this.moveGenerator.buildMove(
+                        `K-${player}`, from, doubleStep, side
+                    ));
+                }
+            }
+        }
+        return castle;
     }
 
-    canDoubleSteps(board: Board, player: Color, pawnId: string): boolean {
-        const pawnPos = board.getPositionOf(pawnId)!;
+    public canDoubleSteps(pawn: Piece, from: number, board: Board): boolean {
 
-        switch (player) {
+        switch (pawn.color) {
             case Color.RED:
-                return pawnPos % 14 + 1 === 2;
+                return from % 14 + 1 === 2;
             case Color.YELLOW:
-                return pawnPos % 14 + 1 === 13;
+                return from % 14 + 1 === 13;
             case Color.BLUE:
-                return Math.trunc(pawnPos / 14) + 1 === 2;
+                return Math.trunc(from / 14) + 1 === 2;
             case Color.GREEN:
-                return Math.trunc(pawnPos / 14) + 1 === 13;
+                return Math.trunc(from / 14) + 1 === 13;
             default:
                 return false;
         }
     }
 
-    canEnPassant(board: Board, pawnId: string): boolean {
-        const pawnPos = board.getPositionOf(pawnId)!;
-
-        return EN_PASSANT_SQUARES_IDS.has(pawnPos);
+    public getEnPassantMove(pawn: Piece, from: number, game: Game): Move | undefined {
+        let enPassant: number | undefined = undefined;
+        const gameHistory = game.getHistory();
+        if(gameHistory.length !== 0) {
+            const lastMove = gameHistory[gameHistory.length - 1];
+            const lastMovedPiece = game.getBoard().getPiece(lastMove.pieceId)!;
+            if(lastMovedPiece.type === PieceType.PAWN) {
+                if (EN_PASSANT_SQUARES_IDS.has(from)) {
+                    if (pawn.color === Color.RED || pawn.color === Color.YELLOW) {
+                        if (lastMove.to === from - 14 ||
+                            lastMove.to === from + 14)
+                            enPassant = pawn.color === Color.RED 
+                                ? lastMove.to + 1: lastMove.to - 1
+                    } else {
+                        if (lastMove.to === from - 1 ||
+                            lastMove.to === from + 1)
+                            enPassant = pawn.color === Color.BLUE 
+                                ? lastMove.to + 14: lastMove.to - 14
+                    }
+                }
+            }
+        }
+        if(!enPassant) return undefined;
+        
+        return this.moveGenerator.buildMove(pawn.id, from, enPassant, undefined, true);
     }
 
     getGameState(game: Game): GameState {

@@ -1,0 +1,80 @@
+import { beforeEach, describe, expect, test } from '@jest/globals';
+
+import { ClassicRuleSet, Color, Game, MoveGenerator, PieceType, buildDuplicatePiece, buildKing, buildPawn, parseSquareId } from '../../src';
+
+describe('Game', () => {
+  let game: Game;
+
+  beforeEach(() => {
+    const ruleSet = new ClassicRuleSet(new MoveGenerator());
+    game = new Game(ruleSet);
+  });
+
+  test.each([Color.RED, Color.BLUE])('exposes pawn double-step moves from the initial rank for %s', (color) => {
+    const pawn = buildPawn(color, 4);
+    const startSquare = color === Color.RED ? parseSquareId(2, 7) : parseSquareId(8, 2);
+    const oneStepSquare = color === Color.RED ? parseSquareId(3, 7) : parseSquareId(8, 3);
+    const twoStepSquare = color === Color.RED ? parseSquareId(4, 7) : parseSquareId(8, 4);
+    const customGame = new Game(new ClassicRuleSet(new MoveGenerator()), [[pawn], [startSquare]]);
+
+    const moves = customGame.getLegalMoves(pawn.id);
+    const destinations = moves.map(move => move.to);
+
+    expect(destinations).toContain(oneStepSquare);
+    expect(destinations).toContain(twoStepSquare);
+  });
+
+  test.each([Color.RED, Color.BLUE])('applies en-passant moves by removing the captured pawn for %s', (color) => {
+    const pawn = buildPawn(color, 4);
+    const enemyPawn = buildPawn(color === Color.RED ? Color.YELLOW : Color.GREEN, 4);
+    const pawnStart = parseSquareId(5, 5);
+    const enemyStart = color === Color.RED ? parseSquareId(5, 4) : parseSquareId(4, 5);
+    const lastMoveTarget = color === Color.RED ? pawnStart + 14 : pawnStart + 1;
+    const enPassantTarget = color === Color.RED ? lastMoveTarget + 1 : lastMoveTarget + 14;
+
+    const customGame = new Game(
+      new ClassicRuleSet(new MoveGenerator()),
+      [[pawn, enemyPawn], [pawnStart, enemyStart]]
+    );
+
+    customGame.applyMove({
+      pieceId: enemyPawn.id,
+      from: enemyStart,
+      to: lastMoveTarget,
+    });
+
+    const enPassantMove = customGame.getLegalMoves(pawn.id).find(move => move.to === enPassantTarget);
+    expect(enPassantMove).toBeDefined();
+    expect(enPassantMove?.enPassant).toBe(true);
+
+    const applied = customGame.applyMove(enPassantMove!);
+
+    expect(applied).toBe(true);
+    expect(customGame.getBoard().getPositionOf(pawn.id)).toBe(enPassantTarget);
+    expect(customGame.getBoard().getPieceAt(lastMoveTarget)).toBeUndefined();
+    expect(customGame.getBoard().getPieceAt(enPassantTarget)).toEqual(pawn);
+  });
+
+  test.each([Color.RED, Color.BLUE])('applies castling moves by moving the rook into place for %s', (color) => {
+    const king = buildKing(color);
+    const rook = buildDuplicatePiece(color, PieceType.ROOK, true);
+    const kingStart = color === Color.RED ? parseSquareId(1, 8) : parseSquareId(8, 1);
+    const rookStart = color === Color.RED ? parseSquareId(1, 11) : parseSquareId(11, 1);
+    const castleTarget = color === Color.RED ? parseSquareId(1, 10) : parseSquareId(10, 1);
+    const rookTarget = color === Color.RED ? parseSquareId(1, 9) : parseSquareId(9, 1);
+
+    const customGame = new Game(
+      new ClassicRuleSet(new MoveGenerator()),
+      [[king, rook], [kingStart, rookStart]]
+    );
+
+    const castleMove = customGame.getLegalMoves(king.id).find(move => move.castle === 'kingside');
+    expect(castleMove).toBeDefined();
+
+    const applied = customGame.applyMove(castleMove!);
+
+    expect(applied).toBe(true);
+    expect(customGame.getBoard().getPositionOf(king.id)).toBe(castleTarget);
+    expect(customGame.getBoard().getPositionOf(rook.id)).toBe(rookTarget);
+  });
+});

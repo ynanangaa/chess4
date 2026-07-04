@@ -29,6 +29,19 @@ function captureDirectionOffsets(color: Color): number[] {
   }
 }
 
+export function enPassantCapturedPawnSquare(moveTo: number, color: Color): number {
+  switch (color) {
+    case Color.RED:
+      return moveTo - 1;
+    case Color.YELLOW:
+      return moveTo + 1;
+    case Color.BLUE:
+      return moveTo - 14;
+    case Color.GREEN:
+      return moveTo + 14;
+  }
+}
+
 export function pawnMoves(pawn: Piece, position: number, board: Board): number[] {
   
   // Standard forward move

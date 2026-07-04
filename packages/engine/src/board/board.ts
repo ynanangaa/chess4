@@ -17,12 +17,20 @@ export class Board {
     if (initialPieces) {
       [pieces, initialSquareIds] = initialPieces;
     } else {
-      [pieces, initialSquareIds] = [
-        ...initializePieces(Color.RED),
-        ...initializePieces(Color.BLUE),
-        ...initializePieces(Color.YELLOW),
-        ...initializePieces(Color.GREEN)
-      ];
+      const allPieces: Piece[] = [];
+      const allPositions: number[] = [];
+
+      [
+        initializePieces(Color.RED),
+        initializePieces(Color.BLUE),
+        initializePieces(Color.YELLOW),
+        initializePieces(Color.GREEN)
+      ].forEach(([piecesForColor, positionsForColor]) => {
+        allPieces.push(...piecesForColor);
+        allPositions.push(...positionsForColor);
+      });
+
+      [pieces, initialSquareIds] = [allPieces, allPositions];
     }
     // Initialize pieces
     pieces.forEach((p, i) => 
@@ -39,7 +47,15 @@ export class Board {
 
   // Return all occupied squares on the board
   public getOccupiedSquares(): Map<number, string> {
-    return this.occupiedSquares;;
+    return this.occupiedSquares;
+  }
+
+  public getOccupiedSquaresByColor(color: Color): [number, string][] {
+    const colorSquares = Array.from(this.occupiedSquares.entries()).filter(([squareId, pieceId]) => {
+      const piece = this.getPiece(pieceId);
+      return piece?.color === color;
+    });
+    return colorSquares;
   }
 
   // Return piece by id
@@ -52,6 +68,12 @@ export class Board {
     const pieceId = this.occupiedSquares.get(squareId);
     if (!pieceId) return undefined;
     return this.pieces.get(pieceId);
+  }
+
+  public getPiecesByColor(color: Color): Piece[] {
+    return Array.from(this.pieces.values()).filter(p =>
+      p.color === color
+    )
   }
 
   // Return position of a piece
@@ -96,6 +118,20 @@ export class Board {
     this.piecePositions.set(pieceId, squareId);
     this.occupiedSquares.set(squareId, pieceId);
 
+    return piece;
+  }
+
+  public removePiece(pieceId: string): Piece | undefined {
+    const piece = this.pieces.get(pieceId);
+    if (!piece) return undefined;
+
+    const currentSquareId = this.piecePositions.get(pieceId);
+    if (currentSquareId !== undefined) {
+      this.occupiedSquares.delete(currentSquareId);
+      this.piecePositions.delete(pieceId);
+    }
+
+    this.pieces.delete(pieceId);
     return piece;
   }
 

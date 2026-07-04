@@ -1,19 +1,21 @@
 import { Board } from "../board";
-import { Move } from "../moves";
+import { Move, rookCastleDirectionOffset } from "../moves";
+import { enPassantCapturedPawnSquare } from "../moves/pawn-moves";
 import { RuleSet } from "../rules";
 import { Player } from "../players";
-import { Color } from "../types";
+import { Color, Piece, PieceType } from "../types";
 import { GameState } from "./game-state";
 
 export class Game {
   private board: Board;
   private history: Move[];
+  private movedPieces: Set<string> = new Set(); // Set parsing of history
   private players: Player[] = [];
   private gameState: GameState;
 
-  constructor(private ruleSet: RuleSet) {
-    this.board = new Board();
-    this.history = [];
+  constructor(private ruleSet: RuleSet, initialPieces?: [Piece[], number[]], history?: Move[]) {
+    this.board = new Board(initialPieces);
+    this.history = history ? history.slice() : [];
     this.players = [
       new Player("P1", Color.RED),
       new Player("P2", Color.BLUE),
@@ -40,10 +42,35 @@ export class Game {
     this.gameState = this.ruleSet.getGameState(this);
   }
 
+  private getCapturedPieceIdForEnPassant(move: Move): string | undefined {
+    if (!move.enPassant) return undefined;
+
+    const movingPiece = this.board.getPiece(move.pieceId);
+    if (!movingPiece || movingPiece.type !== PieceType.PAWN) return undefined;
+
+    const capturedSquare = enPassantCapturedPawnSquare(move.to, movingPiece.color);
+    const capturedPiece = this.board.getPieceAt(capturedSquare);
+    if (!capturedPiece || capturedPiece.color === movingPiece.color) return undefined;
+
+    return capturedPiece.id;
+  }
+
   applyMove(move: Move): boolean {
     const result = this.board.placePiece(move.pieceId, move.to);
     if (result) {
+      const capturedPieceId = this.getCapturedPieceIdForEnPassant(move);
+      if (capturedPieceId) {
+        this.board.removePiece(capturedPieceId);
+      }
+
       this.history.push(move);
+      this.movedPieces.add(move.pieceId);
+      if (move.castle) {
+        const color = this.board.getPiece(move.pieceId)!.color;
+        const rook = `R-${color}-${move.castle}`;
+        this.board.placePiece(rook, move.to + rookCastleDirectionOffset(color, move.castle));
+        this.movedPieces.add(rook);
+      }
       this.updateGameStatus();
       return true;
     }
@@ -69,7 +96,11 @@ export class Game {
   }
 
   getLegalMoves(pieceId: string): Move[] {
-    return this.ruleSet.getLegalMoves(this, pieceId);
+    return this.ruleSet.getLegalMoves(pieceId, this);
+  }
+
+  public hasPieceMoved(pieceId: string): boolean {
+    return this.movedPieces.has(pieceId);
   }
 
   /*undo(): Move | null {
