@@ -18,10 +18,13 @@ export interface RuleSet {
   getCastleMoves(player: Color, game: Game): Move[];
 
   // Return true if the pawn of the given id can move two squares forward, for the given player color
-  canDoubleSteps(pawn: Piece, from: number, board: Board): boolean;
+  canDoubleSteps(pawn: Piece, from: number): boolean;
 
   // Return true if a pawn of the given id can take en passant, for the given player color
   getEnPassantMove(pawn: Piece, from: number, game: Game): Move | undefined;
+
+  // Pawn promotion
+  promotion(pawn: Piece, from: number): Move | undefined;
 
   // Calculate and return the game state
   getGameState(game: Game): GameState;

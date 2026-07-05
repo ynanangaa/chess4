@@ -1,5 +1,5 @@
 import { Piece } from '../types/piece';
-import { Color } from '../types';
+import { Color, PieceType } from '../types';
 import { initializePieces, validBoardSquares } from '../utils';
 
 export class Board {
@@ -133,6 +133,13 @@ export class Board {
 
     this.pieces.delete(pieceId);
     return piece;
+  }
+
+  // Set the type of a pawn when it promotes
+  public setPromotionPieceType(pieceId: string, newType: PieceType): void {
+    const piece = this.getPiece(pieceId);
+    if(piece?.type === PieceType.PAWN)
+      this.pieces.set(pieceId, {...piece, type: newType});
   }
 
   // Clear board

@@ -4,7 +4,7 @@ import { castleDirectionOffset, forwardDirectionOffsets, Move, MoveGenerator } f
 import { Color, Piece, PieceType } from "../types";
 import { EN_PASSANT_SQUARES_IDS } from "./en-passant-squares-ids";
 import { Board } from "../board";
-import { kingInitialSquareId, parseSquareId, rookInitialSquareId } from "../utils";
+import { kingInitialSquareId, rookInitialSquareId } from "../utils";
 
 export class ClassicRuleSet implements RuleSet {
 
@@ -32,11 +32,14 @@ export class ClassicRuleSet implements RuleSet {
 
         let doubleStepMove: Move | undefined = undefined;
         let enpassantMove: Move | undefined = undefined;
+        let promotionMove: Move | undefined = undefined;
         if (selectedPiece.type === PieceType.PAWN) {
             const doubleStep = this.getPawnDoubleStep(selectedPiece, from, board);
             if(doubleStep) doubleStepMove = doubleStep;
             const enPassant = this.getEnPassantMove(selectedPiece, from, game);
             if(enPassant) enpassantMove = enPassant;
+            const promote = this.promotion(selectedPiece, from);
+            if(promote) promotionMove = promote;
         }
         const castleMoves: Move[] = [];
         if (selectedPiece.type === PieceType.KING) {
@@ -44,9 +47,12 @@ export class ClassicRuleSet implements RuleSet {
             castleMoves.push(...castle)
 
         }
-        const moves = pseudoLegalMoves.map(to => 
+        let moves = pseudoLegalMoves.map(to => 
             this.moveGenerator.buildMove(pieceId, from, to)
         );
+        if(promotionMove) {
+            moves = moves.map(m => promotionMove.to === m.to ? promotionMove: m)
+        }
         if(doubleStepMove) moves.push(doubleStepMove);
         if(enpassantMove) moves.push(enpassantMove);
         moves.push(...castleMoves);
@@ -57,7 +63,7 @@ export class ClassicRuleSet implements RuleSet {
     private getPawnDoubleStep(pawn: Piece, from: number, board: Board): Move | undefined {
         const direction = forwardDirectionOffsets(pawn.color);
 
-        if (this.canDoubleSteps(pawn, from, board)) {
+        if (this.canDoubleSteps(pawn, from)) {
             const oneStepSquare = from + direction;
             const doubleStepSquare = oneStepSquare + direction;
 
@@ -109,7 +115,7 @@ export class ClassicRuleSet implements RuleSet {
         return castle;
     }
 
-    public canDoubleSteps(pawn: Piece, from: number, board: Board): boolean {
+    public canDoubleSteps(pawn: Piece, from: number): boolean {
 
         switch (pawn.color) {
             case Color.RED:
@@ -149,6 +155,30 @@ export class ClassicRuleSet implements RuleSet {
         if(!enPassant) return undefined;
         
         return this.moveGenerator.buildMove(pawn.id, from, enPassant, undefined, "e-p");
+    }
+
+    private canPromote(pawn: Piece, from: number): boolean {
+        switch (pawn.color) {
+            case Color.RED:
+                return from % 14 + 1 === 7;
+            case Color.YELLOW:
+                return from % 14 + 1 === 8;
+            case Color.BLUE:
+                return Math.trunc(from / 14) + 1 === 7;
+            case Color.GREEN:
+                return Math.trunc(from / 14) + 1 === 8;
+            default:
+                return false;
+        }
+    }
+
+    public promotion(pawn: Piece, from: number): Move | undefined {
+        if(!this.canPromote(pawn, from)) return undefined;
+        const forward = forwardDirectionOffsets(pawn.color);
+        return this.moveGenerator.buildMove(
+            pawn.id, from, from + forward,
+            undefined, 'promotion'
+        )
     }
 
     getGameState(game: Game): GameState {

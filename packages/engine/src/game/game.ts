@@ -43,7 +43,7 @@ export class Game {
   }
 
   private getCapturedPieceIdForEnPassant(move: Move): string | undefined {
-    if (!move.pawnSpecialMove && move.pawnSpecialMove !== 'e-p') return undefined;
+    if (move.pawnSpecialMove !== 'e-p') return undefined;
 
     const movingPiece = this.board.getPiece(move.pieceId);
     if (!movingPiece || movingPiece.type !== PieceType.PAWN) return undefined;
@@ -62,6 +62,8 @@ export class Game {
       if (capturedPieceId) {
         this.board.removePiece(capturedPieceId);
       }
+      if (move.pawnSpecialMove === 'promotion')
+        this.board.setPromotionPieceType(move.pieceId, PieceType.QUEEN);
 
       this.history.push(move);
       this.movedPieces.add(move.pieceId);

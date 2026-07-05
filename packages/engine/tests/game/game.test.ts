@@ -78,4 +78,21 @@ describe('Game', () => {
     expect(customGame.getBoard().getPositionOf(king.id)).toBe(castleTarget);
     expect(customGame.getBoard().getPositionOf(rook.id)).toBe(rookTarget);
   });
+
+  test.each([Color.RED, Color.BLUE])('exposes pawn promotion move for %s', (color) => {
+    const pawn = buildPawn(color, 4);
+    const startSquare = color === Color.RED ? parseSquareId(7, 7) : parseSquareId(10, 7);
+    const promotionSquare = color === Color.RED ? parseSquareId(8, 7) : parseSquareId(10, 8);
+    const customGame = new Game(new ClassicRuleSet(new MoveGenerator()), [[pawn], [startSquare]]);
+
+    const promotionMove = customGame.getLegalMoves(pawn.id).find(move => 
+      move.pawnSpecialMove === 'promotion');
+    expect(promotionMove).toBeDefined();
+
+    const applied = customGame.applyMove(promotionMove!);
+
+    expect(applied).toBe(true);
+    expect(customGame.getBoard().getPositionOf(pawn.id)).toBe(promotionSquare);
+    expect(customGame.getBoard().getPiece(pawn.id)?.type).toBe(PieceType.QUEEN);
+  });
 });
