@@ -22,7 +22,7 @@ export class ClassicRuleSet implements RuleSet {
         return Color.RED; // Placeholder implementation
     }
 
-    getLegalMoves(pieceId: string, game: Game): Move[] {
+    public getLegalMoves(pieceId: string, game: Game): Move[] {
         const board = game.getBoard();
         const selectedPiece = board.getPiece(pieceId);
         if (!selectedPiece) return [];
@@ -179,6 +179,36 @@ export class ClassicRuleSet implements RuleSet {
             pawn.id, from, from + forward,
             undefined, 'promotion'
         )
+    }
+
+    public getCheckedKings(player: Color, game: Game): Color[] {
+        const board = game.getBoard();
+
+        const checked = new Set<Color>();
+
+        const enemyKings = new Map<Color, number>();
+
+        for (const color of [Color.RED, Color.BLUE, Color.YELLOW, Color.GREEN]) {
+            if (color === player) continue;
+
+            const kingPos = board.getPositionOf(`K-${color}`);
+            if (kingPos !== undefined)
+                enemyKings.set(color, kingPos);
+        }
+
+        for (const piece of board.getPiecesByColor(player)) {
+
+            const moves = new Set(
+                this.moveGenerator.generateMovesForPiece(piece, board)
+            );
+
+            for (const [color, kingPos] of enemyKings) {
+                if (moves.has(kingPos))
+                    checked.add(color);
+            }
+        }
+
+        return [...checked];
     }
 
     getGameState(game: Game): GameState {

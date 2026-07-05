@@ -95,4 +95,44 @@ describe('Game', () => {
     expect(customGame.getBoard().getPositionOf(pawn.id)).toBe(promotionSquare);
     expect(customGame.getBoard().getPiece(pawn.id)?.type).toBe(PieceType.QUEEN);
   });
+
+  test('detects all checked kings after a move', () => {
+    const redRook = buildDuplicatePiece(Color.RED, PieceType.ROOK, true);
+    const redBishop = buildDuplicatePiece(Color.RED, PieceType.BISHOP, true);
+
+    const blueKing = buildKing(Color.BLUE);
+    const yellowKing = buildKing(Color.YELLOW);
+    const greenKing = buildKing(Color.GREEN);
+
+    const game = new Game(
+      new ClassicRuleSet(new MoveGenerator()),
+      [[
+        redRook,
+        blueKing,
+        yellowKing,
+        greenKing
+      ], [
+        parseSquareId(1, 4),   // red rook
+        parseSquareId(10, 4),  //
+        parseSquareId(11, 13),   // not attacked
+        parseSquareId(7, 7)    // bishop diagonal
+      ]]
+    );
+
+    const checkingMove = game
+      .getLegalMoves(redRook.id)
+      .find(move => move.to === parseSquareId(7, 4));
+
+    expect(checkingMove).toBeDefined();
+
+    expect(game.applyMove(checkingMove!)).toBe(true);
+
+    const history = game.getHistory();
+    expect(history).toHaveLength(1);
+
+    expect(history[0].check).toContain(Color.BLUE);
+
+    expect(history[0].check).not.toContain(Color.YELLOW);
+    expect(history[0].check).toContain(Color.GREEN);
+  });
 });

@@ -1,3 +1,5 @@
+import { Color } from "../types";
+
 export interface Move {
   pieceId: string;
   from: number;
@@ -6,4 +8,5 @@ export interface Move {
   
   castle?: "kingside" | "queenside";
   pawnSpecialMove?: "doublestep" | "e-p" | "promotion";
+  check?: Color[];
 }

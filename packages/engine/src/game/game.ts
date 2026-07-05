@@ -55,7 +55,7 @@ export class Game {
     return capturedPiece.id;
   }
 
-  applyMove(move: Move): boolean {
+  public applyMove(move: Move): boolean {
     const result = this.board.placePiece(move.pieceId, move.to);
     if (result) {
       const capturedPieceId = this.getCapturedPieceIdForEnPassant(move);
@@ -65,14 +65,21 @@ export class Game {
       if (move.pawnSpecialMove === 'promotion')
         this.board.setPromotionPieceType(move.pieceId, PieceType.QUEEN);
 
-      this.history.push(move);
-      this.movedPieces.add(move.pieceId);
       if (move.castle) {
         const color = this.board.getPiece(move.pieceId)!.color;
         const rook = `R-${color}-${move.castle}`;
         this.board.placePiece(rook, move.to + rookCastleDirectionOffset(color, move.castle));
         this.movedPieces.add(rook);
       }
+
+      const checkedKings = this.ruleSet.getCheckedKings(result.color, this);
+      if (checkedKings.length > 0) {
+        this.history.push({...move, check: checkedKings})
+      } else {
+        this.history.push(move);
+      }
+      this.movedPieces.add(move.pieceId);
+
       this.updateGameStatus();
       return true;
     }
@@ -97,7 +104,7 @@ export class Game {
     return colors[this.history.length % colors.length];
   }
 
-  getLegalMoves(pieceId: string): Move[] {
+  public getLegalMoves(pieceId: string): Move[] {
     return this.ruleSet.getLegalMoves(pieceId, this);
   }
 
