@@ -43,7 +43,7 @@ export class Game {
   }
 
   private getCapturedPieceIdForEnPassant(move: Move): string | undefined {
-    if (!move.enPassant) return undefined;
+    if (!move.pawnSpecialMove && move.pawnSpecialMove !== 'e-p') return undefined;
 
     const movingPiece = this.board.getPiece(move.pieceId);
     if (!movingPiece || movingPiece.type !== PieceType.PAWN) return undefined;

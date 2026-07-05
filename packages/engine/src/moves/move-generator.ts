@@ -15,14 +15,14 @@ export class MoveGenerator {
         from: number,
         destination: number,
         castle?: "kingside" | "queenside",
-        enPassant?: true
+        pawnSpecialMove?: "doublestep" | "e-p" | "promotion"
     ): Move {
         return {
             pieceId: pieceId,
             from: from,
             to: destination,
             castle: castle,
-            enPassant: enPassant
+            pawnSpecialMove: pawnSpecialMove
         };
     }
 

@@ -41,11 +41,12 @@ describe('Game', () => {
       pieceId: enemyPawn.id,
       from: enemyStart,
       to: lastMoveTarget,
+      pawnSpecialMove: 'doublestep',
     });
 
     const enPassantMove = customGame.getLegalMoves(pawn.id).find(move => move.to === enPassantTarget);
     expect(enPassantMove).toBeDefined();
-    expect(enPassantMove?.enPassant).toBe(true);
+    expect(enPassantMove?.pawnSpecialMove).toBe("e-p");
 
     const applied = customGame.applyMove(enPassantMove!);
 

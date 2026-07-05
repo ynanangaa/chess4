@@ -5,5 +5,5 @@ export interface Move {
   // from and to are square ids
   
   castle?: "kingside" | "queenside";
-  enPassant?: true;
+  pawnSpecialMove?: "doublestep" | "e-p" | "promotion";
 }

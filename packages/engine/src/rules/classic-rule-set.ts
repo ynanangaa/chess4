@@ -4,7 +4,7 @@ import { castleDirectionOffset, forwardDirectionOffsets, Move, MoveGenerator } f
 import { Color, Piece, PieceType } from "../types";
 import { EN_PASSANT_SQUARES_IDS } from "./en-passant-squares-ids";
 import { Board } from "../board";
-import { parseSquareId } from "../utils";
+import { kingInitialSquareId, parseSquareId, rookInitialSquareId } from "../utils";
 
 export class ClassicRuleSet implements RuleSet {
 
@@ -30,10 +30,11 @@ export class ClassicRuleSet implements RuleSet {
 
         const pseudoLegalMoves = this.moveGenerator.generateMovesForPiece(selectedPiece, board);
 
+        let doubleStepMove: Move | undefined = undefined;
         let enpassantMove: Move | undefined = undefined;
         if (selectedPiece.type === PieceType.PAWN) {
             const doubleStep = this.getPawnDoubleStep(selectedPiece, from, board);
-            if(doubleStep) pseudoLegalMoves.push(doubleStep);
+            if(doubleStep) doubleStepMove = doubleStep;
             const enPassant = this.getEnPassantMove(selectedPiece, from, game);
             if(enPassant) enpassantMove = enPassant;
         }
@@ -46,13 +47,14 @@ export class ClassicRuleSet implements RuleSet {
         const moves = pseudoLegalMoves.map(to => 
             this.moveGenerator.buildMove(pieceId, from, to)
         );
+        if(doubleStepMove) moves.push(doubleStepMove);
         if(enpassantMove) moves.push(enpassantMove);
         moves.push(...castleMoves);
 
         return moves;
     }
 
-    private getPawnDoubleStep(pawn: Piece, from: number, board: Board): number | undefined {
+    private getPawnDoubleStep(pawn: Piece, from: number, board: Board): Move | undefined {
         const direction = forwardDirectionOffsets(pawn.color);
 
         if (this.canDoubleSteps(pawn, from, board)) {
@@ -65,7 +67,10 @@ export class ClassicRuleSet implements RuleSet {
                 board.isValidSquare(doubleStepSquare) &&
                 !board.isOccupied(doubleStepSquare)
             ) {
-                return doubleStepSquare;
+                return this.moveGenerator.buildMove(
+                    pawn.id, from, doubleStepSquare,
+                    undefined, "doublestep"
+                );
             }
         }
 
@@ -80,9 +85,13 @@ export class ClassicRuleSet implements RuleSet {
         for (const kingSide of [true, false]) {
             const side = kingSide? "kingside": "queenside";
             const hasRookMoved = game.hasPieceMoved(
-                `R-${player}-${kingSide? "kingside": "queenside"}`
+                `R-${player}-${side}`
             )
-            if (!hasKingMoved && !hasRookMoved) {
+            const rookPos = board.getPositionOf(`R-${player}-${side}`)!
+            if (from === kingInitialSquareId(player) && !hasKingMoved &&
+                rookPos === rookInitialSquareId(player, kingSide) &&
+                !hasRookMoved
+                ) {
                 const allOpponentsMoves = this.moveGenerator.generateAllOpponentsMoves(board, player);
                 const direction = castleDirectionOffset(player, kingSide);
                 const oneStep = from + direction;
@@ -121,8 +130,7 @@ export class ClassicRuleSet implements RuleSet {
         const gameHistory = game.getHistory();
         if(gameHistory.length !== 0) {
             const lastMove = gameHistory[gameHistory.length - 1];
-            const lastMovedPiece = game.getBoard().getPiece(lastMove.pieceId)!;
-            if(lastMovedPiece.type === PieceType.PAWN) {
+            if(lastMove?.pawnSpecialMove === 'doublestep') {
                 if (EN_PASSANT_SQUARES_IDS.has(from)) {
                     if (pawn.color === Color.RED || pawn.color === Color.YELLOW) {
                         if (lastMove.to === from - 14 ||
@@ -140,7 +148,7 @@ export class ClassicRuleSet implements RuleSet {
         }
         if(!enPassant) return undefined;
         
-        return this.moveGenerator.buildMove(pawn.id, from, enPassant, undefined, true);
+        return this.moveGenerator.buildMove(pawn.id, from, enPassant, undefined, "e-p");
     }
 
     getGameState(game: Game): GameState {

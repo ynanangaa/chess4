@@ -66,14 +66,14 @@ export function isSamePiece(left: Piece | undefined, right: Piece | undefined): 
     );
 }
 
-function createPieceId(color: Color, type: PieceType, pawnNum?: number): string {
+export function createPieceId(color: Color, type: PieceType, pawnNum?: number): string {
     if (type === PieceType.PAWN && pawnNum) {
         return `${color}-${pawnNum}`;
     }
     return `${type}-${color}`;
 }
 
-function createDuplicatePieceId(color: Color, type: PieceType, kingSide: boolean): string {
+export function createDuplicatePieceId(color: Color, type: PieceType, kingSide: boolean): string {
     if (kingSide) {
         return `${type}-${color}-kingside`;
     }
@@ -89,7 +89,7 @@ export function buildPawn(color: Color, pawnNum: number): Piece {
     }
 }
 
-function pawnInitialSquareId(color: Color, pawnNum: number): number {
+export function pawnInitialSquareId(color: Color, pawnNum: number): number {
     switch(color) {
         case Color.RED:
             return parseSquareId(2, 3 + pawnNum);
@@ -111,7 +111,7 @@ export function buildDuplicatePiece(color: Color, type: PieceType, kingSide: boo
     }
 }
 
-function bishopInitialSquareId(color: Color, kingSide: boolean): number {
+export function bishopInitialSquareId(color: Color, kingSide: boolean): number {
     switch(color) {
         case Color.RED:
             return parseSquareId(1, kingSide ? 9: 6);
@@ -124,7 +124,7 @@ function bishopInitialSquareId(color: Color, kingSide: boolean): number {
     }
 }
 
-function knightInitialSquareId(color: Color, kingSide: boolean): number {
+export function knightInitialSquareId(color: Color, kingSide: boolean): number {
     switch(color) {
         case Color.RED:
             return parseSquareId(1, kingSide ? 10: 5);
@@ -137,7 +137,7 @@ function knightInitialSquareId(color: Color, kingSide: boolean): number {
     }
 }
 
-function rookInitialSquareId(color: Color, kingSide: boolean): number {
+export function rookInitialSquareId(color: Color, kingSide: boolean): number {
     switch(color) {
         case Color.RED:
             return parseSquareId(1, kingSide ? 11: 4);
@@ -150,7 +150,7 @@ function rookInitialSquareId(color: Color, kingSide: boolean): number {
     }
 }
 
-function queenInitialSquareId(color: Color): number {
+export function queenInitialSquareId(color: Color): number {
     switch(color) {
         case Color.RED:
             return parseSquareId(1, 7);
@@ -163,7 +163,7 @@ function queenInitialSquareId(color: Color): number {
     }
 }
 
-function kingInitialSquareId(color: Color): number {
+export function kingInitialSquareId(color: Color): number {
     switch(color) {
         case Color.RED:
             return parseSquareId(1, 8);
