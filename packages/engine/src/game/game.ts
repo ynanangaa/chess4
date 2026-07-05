@@ -72,9 +72,16 @@ export class Game {
         this.movedPieces.add(rook);
       }
 
-      const checkedKings = this.ruleSet.getCheckedKings(result.color, this);
-      if (checkedKings.length > 0) {
-        this.history.push({...move, check: checkedKings})
+      const checkInfos = this.ruleSet.getCheckInfos(result.color, this);
+      if (checkInfos.size > 0) {
+        const kingColors: Color[] = [];
+        for (const v of checkInfos.values())
+          kingColors.push(...v);
+        
+        this.history.push({
+          ...move, 
+          check: [...new Set(kingColors)]
+        });
       } else {
         this.history.push(move);
       }

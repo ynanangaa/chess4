@@ -30,5 +30,5 @@ export interface RuleSet {
   getGameState(game: Game): GameState;
 
   // Return colors of the players in check status following a move
-  getCheckedKings(player: Color, game: Game): Color[];
+  getCheckInfos(player: Color, game: Game): Map<string, Color[]>;
 }

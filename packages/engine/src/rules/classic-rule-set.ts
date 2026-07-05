@@ -181,12 +181,12 @@ export class ClassicRuleSet implements RuleSet {
         )
     }
 
-    public getCheckedKings(player: Color, game: Game): Color[] {
+    public getCheckInfos(player: Color, game: Game): Map<string, Color[]> {
         const board = game.getBoard();
 
-        const checked = new Set<Color>();
-
         const enemyKings = new Map<Color, number>();
+
+        const checkInfos = new Map<string, Color[]>();
 
         for (const color of [Color.RED, Color.BLUE, Color.YELLOW, Color.GREEN]) {
             if (color === player) continue;
@@ -203,12 +203,17 @@ export class ClassicRuleSet implements RuleSet {
             );
 
             for (const [color, kingPos] of enemyKings) {
+                    
                 if (moves.has(kingPos))
-                    checked.add(color);
+                    if (checkInfos.has(piece.id)) {
+                        const colorArr = checkInfos.get(piece.id)!;
+                        colorArr.push(color);
+                        checkInfos.set(piece.id, colorArr)
+                    } else checkInfos.set(piece.id, [color]);
             }
         }
 
-        return [...checked];
+        return checkInfos;
     }
 
     getGameState(game: Game): GameState {
