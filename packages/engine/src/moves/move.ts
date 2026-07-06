@@ -8,5 +8,5 @@ export interface Move {
   
   castle?: "kingside" | "queenside";
   pawnSpecialMove?: "doublestep" | "e-p" | "promotion";
-  check?: Color[];
+  check?: Map<string, Color[]>;
 }

@@ -1,7 +1,7 @@
 import { RuleSet } from "./rule-set";
 import { Game, GameState } from "../game";
 import { castleDirectionOffset, forwardDirectionOffsets, Move, MoveGenerator } from "../moves";
-import { Color, Piece, PieceType } from "../types";
+import { Color, GameStatus, Piece, PieceType, PlayerState } from "../types";
 import { EN_PASSANT_SQUARES_IDS } from "./en-passant-squares-ids";
 import { Board } from "../board";
 import { kingInitialSquareId, rookInitialSquareId } from "../utils";
@@ -28,7 +28,27 @@ export class ClassicRuleSet implements RuleSet {
         if (!selectedPiece) return [];
         const from = board.getPositionOf(pieceId)!;
 
-        const pseudoLegalMoves = this.moveGenerator.generateMovesForPiece(selectedPiece, board);
+        const gameState = game.getGameState();
+
+        let pseudoLegalMoves = this.moveGenerator.generateMovesForPiece(selectedPiece, board);
+        const playerState = gameState.getPlayerState(selectedPiece.color)!;
+        if(playerState === PlayerState.CHECK) {
+            const history = game.getHistory();
+            const lastMove = history[history.length - 1];
+            for (const [pieceId, colors] of lastMove.check!) {
+                if (colors.includes(selectedPiece.color)) {
+                    const pathToKing = this.getPathToCheckedKing(
+                        pieceId,
+                        selectedPiece.color,
+                        board
+                    );
+                    pseudoLegalMoves = pseudoLegalMoves.filter(m =>
+                        !pathToKing.some(pos => pos === m)
+                    );
+                }
+            }
+            //pseudoLegalMoves.filter(pos => )
+        }
 
         let doubleStepMove: Move | undefined = undefined;
         let enpassantMove: Move | undefined = undefined;
@@ -216,8 +236,65 @@ export class ClassicRuleSet implements RuleSet {
         return checkInfos;
     }
 
-    getGameState(game: Game): GameState {
+    private getPathToCheckedKing(pieceId: string, kingColor: Color, board: Board): number[] {
+        const kingPos = board.getPositionOf(`K-${kingColor}`);
+        const attackerPos = board.getPositionOf(pieceId);
+
+        if (kingPos === undefined || attackerPos === undefined) {
+            return [];
+        }
+
+        const delta = kingPos - attackerPos;
+
+        const step =
+            delta < 13 ? 1 :
+            delta % 14 === 0 ? 14 :
+            delta % 15 === 0 ? 15 :
+            delta % 13 === 0 ? 13 :
+            0;
+
+        if (step === 0) {
+            return [kingPos];
+        }
+
+        const direction = kingPos > attackerPos ? 1 : -1;
+
+        const result: number[] = [];
+
+        for (
+            let pos = attackerPos + direction * step;
+            pos !== kingPos + direction * step;
+            pos += direction * step
+        ) {
+            result.push(pos);
+        }
+
+        return result;
+    }
+
+    public updateGameState(game: Game): GameState {
         // Implement the logic to determine the game state (e.g., ongoing, check, checkmate, stalemate)
-        return new GameState() ; // Placeholder implementation
+        const state = game.getGameState();
+        if(state.getStatus() === GameStatus.RUNNING) {
+            const history = game.getHistory();
+            const lastMove = history[history.length - 1];
+            if(lastMove && lastMove.check !== undefined) {
+                const checkInfos = lastMove.check;
+                const kingColors: Color[] = [];
+                for (const v of checkInfos.values())
+                    kingColors.push(...v);
+                for (const color of new Set(kingColors)) {
+                    state.setPlayerState(color, PlayerState.CHECK);
+                }
+            } else {
+                for (const color of [Color.RED, Color.BLUE, Color.YELLOW, Color.GREEN]) {
+                    const playerState = state.getPlayerState(color);
+                    if(playerState !== PlayerState.NORMAL)
+                        state.setPlayerState(color, PlayerState.NORMAL);
+                }
+                    
+            }
+        }
+        return state ; // Placeholder implementation
     }
 }

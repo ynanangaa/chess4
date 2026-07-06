@@ -38,8 +38,8 @@ export class Game {
     return g;
   }*/
 
-  private updateGameStatus(): void {
-    this.gameState = this.ruleSet.getGameState(this);
+  private updateGameState(): void {
+    this.gameState = this.ruleSet.updateGameState(this);
   }
 
   private getCapturedPieceIdForEnPassant(move: Move): string | undefined {
@@ -74,20 +74,17 @@ export class Game {
 
       const checkInfos = this.ruleSet.getCheckInfos(result.color, this);
       if (checkInfos.size > 0) {
-        const kingColors: Color[] = [];
-        for (const v of checkInfos.values())
-          kingColors.push(...v);
         
         this.history.push({
           ...move, 
-          check: [...new Set(kingColors)]
+          check: checkInfos,
         });
       } else {
         this.history.push(move);
       }
       this.movedPieces.add(move.pieceId);
 
-      this.updateGameStatus();
+      this.updateGameState();
       return true;
     }
     return false;
@@ -104,6 +101,8 @@ export class Game {
   public getGameState(): GameState {
     return this.gameState;
   }
+
+  //public setGameState()
 
   public getCurrentPlayerColor(): Color {
     // determine current player based on history length of a 4-player game

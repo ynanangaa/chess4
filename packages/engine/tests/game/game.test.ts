@@ -1,14 +1,12 @@
-import { beforeEach, describe, expect, test } from '@jest/globals';
+import { describe, expect, test } from '@jest/globals';
 
-import { ClassicRuleSet, Color, Game, MoveGenerator, PieceType, buildDuplicatePiece, buildKing, buildPawn, parseSquareId } from '../../src';
+import { ClassicRuleSet, Color, Game, GameStatus, 
+  MoveGenerator, PieceType, PlayerState, 
+  buildDuplicatePiece, buildKing, buildPawn, 
+  parseSquareId 
+} from '../../src';
 
 describe('Game', () => {
-  let game: Game;
-
-  beforeEach(() => {
-    const ruleSet = new ClassicRuleSet(new MoveGenerator());
-    game = new Game(ruleSet);
-  });
 
   test.each([Color.RED, Color.BLUE])('exposes pawn double-step moves from the initial rank for %s', (color) => {
     const pawn = buildPawn(color, 4);
@@ -98,13 +96,12 @@ describe('Game', () => {
 
   test('detects all checked kings after a move', () => {
     const redRook = buildDuplicatePiece(Color.RED, PieceType.ROOK, true);
-    const redBishop = buildDuplicatePiece(Color.RED, PieceType.BISHOP, true);
 
     const blueKing = buildKing(Color.BLUE);
     const yellowKing = buildKing(Color.YELLOW);
     const greenKing = buildKing(Color.GREEN);
 
-    const game = new Game(
+    const customGame = new Game(
       new ClassicRuleSet(new MoveGenerator()),
       [[
         redRook,
@@ -119,20 +116,21 @@ describe('Game', () => {
       ]]
     );
 
-    const checkingMove = game
+    const checkingMove = customGame
       .getLegalMoves(redRook.id)
       .find(move => move.to === parseSquareId(7, 4));
 
     expect(checkingMove).toBeDefined();
 
-    expect(game.applyMove(checkingMove!)).toBe(true);
+    expect(customGame.applyMove(checkingMove!)).toBe(true);
 
-    const history = game.getHistory();
+    const history = customGame.getHistory();
     expect(history).toHaveLength(1);
 
-    expect(history[0].check).toContain(Color.BLUE);
-
-    expect(history[0].check).not.toContain(Color.YELLOW);
-    expect(history[0].check).toContain(Color.GREEN);
+    expect(history[0].check).toBeInstanceOf(Map);
+    expect(history[0].check?.has(redRook.id)).toBe(true);
+    expect(history[0].check?.get(redRook.id)).toContain(Color.BLUE);
+    expect(history[0].check?.get(redRook.id)).not.toContain(Color.YELLOW);
+    expect(history[0].check?.get(redRook.id)).toContain(Color.GREEN);
   });
 });

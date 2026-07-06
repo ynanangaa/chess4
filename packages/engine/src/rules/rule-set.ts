@@ -27,7 +27,7 @@ export interface RuleSet {
   promotion(pawn: Piece, from: number): Move | undefined;
 
   // Calculate and return the game state
-  getGameState(game: Game): GameState;
+  updateGameState(game: Game): GameState;
 
   // Return colors of the players in check status following a move
   getCheckInfos(player: Color, game: Game): Map<string, Color[]>;
