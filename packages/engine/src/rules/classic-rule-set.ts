@@ -32,23 +32,6 @@ export class ClassicRuleSet implements RuleSet {
 
         let pseudoLegalMoves = this.moveGenerator.generateMovesForPiece(selectedPiece, board);
         const playerState = gameState.getPlayerState(selectedPiece.color)!;
-        if(playerState === PlayerState.CHECK) {
-            const history = game.getHistory();
-            const lastMove = history[history.length - 1];
-            for (const [pieceId, colors] of lastMove.check!) {
-                if (colors.includes(selectedPiece.color)) {
-                    const pathToKing = this.getPathToCheckedKing(
-                        pieceId,
-                        selectedPiece.color,
-                        board
-                    );
-                    pseudoLegalMoves = pseudoLegalMoves.filter(m =>
-                        !pathToKing.some(pos => pos === m)
-                    );
-                }
-            }
-            //pseudoLegalMoves.filter(pos => )
-        }
 
         let doubleStepMove: Move | undefined = undefined;
         let enpassantMove: Move | undefined = undefined;
@@ -74,8 +57,30 @@ export class ClassicRuleSet implements RuleSet {
             moves = moves.map(m => promotionMove.to === m.to ? promotionMove: m)
         }
         if(doubleStepMove) moves.push(doubleStepMove);
+        
         if(enpassantMove) moves.push(enpassantMove);
+
         moves.push(...castleMoves);
+
+        if(playerState === PlayerState.CHECK) {
+            const history = game.getHistory();
+            const lastMove = history[history.length - 1];
+            for (const [pieceId, colors] of lastMove.check!) {
+                const attackerPos = board.getPositionOf(pieceId)!;
+                if (colors.includes(selectedPiece.color)) {
+                    const pathToKing = this.getPathToCheckedKing(
+                        pieceId,
+                        selectedPiece.color,
+                        board
+                    );
+                    moves = moves.filter(m =>
+                        !pathToKing.some(pos => pos === m.to) ||
+                        m.to === attackerPos
+                    );
+                }
+            }
+
+        }
 
         return moves;
     }
@@ -104,6 +109,8 @@ export class ClassicRuleSet implements RuleSet {
     }
 
     public getCastleMoves(player: Color, game: Game): Move[] {
+        if(game.getGameState().getPlayerState(player) === PlayerState.CHECK)
+            return [];
         const castle: Move[] = [];
         const board = game.getBoard();
         const hasKingMoved = game.hasPieceMoved(`K-${player}`);
