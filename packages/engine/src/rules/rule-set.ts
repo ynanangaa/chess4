@@ -5,11 +5,6 @@ import { GameState } from '../game/game-state';
 import { Board } from '../board';
 
 export interface RuleSet {
-  // Return true if the move is valid according to the ruleset
-  isValidMove(move: Move): boolean;
-
-  // Get the color of the player whose turn it is to move in the game
-  getCurrentPlayer(game: Game): Color;
 
   // Get legal moves for a piece on the board
   getLegalMoves(pieceId: string, game: Game): Move[];

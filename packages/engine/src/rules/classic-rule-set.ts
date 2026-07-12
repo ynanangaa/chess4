@@ -12,16 +12,6 @@ export class ClassicRuleSet implements RuleSet {
         private readonly moveGenerator: MoveGenerator
     ) { }
 
-    isValidMove(move: Move): boolean {
-        // Implement the logic to check if the move is valid according to classic chess rules
-        return true; // Placeholder implementation
-    }
-
-    getCurrentPlayer(game: Game): Color {
-        // Implement the logic to get the current player color in the game
-        return Color.RED; // Placeholder implementation
-    }
-
     public getLegalMoves(pieceId: string, game: Game): Move[] {
         const board = game.getBoard();
         const selectedPiece = board.getPiece(pieceId);
