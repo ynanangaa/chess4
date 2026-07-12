@@ -265,6 +265,10 @@ describe('Game', () => {
 
     const kingMoves = customGame.getLegalMoves(redKing.id);
 
+    expect(kingMoves).not.toContainEqual(
+      expect.objectContaining({ to: parseSquareId(2, 6) })
+    );
+
     // No castle while in check
     expect(
       kingMoves.some(

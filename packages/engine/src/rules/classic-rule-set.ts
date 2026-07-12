@@ -100,16 +100,26 @@ export class ClassicRuleSet implements RuleSet {
                         }
                     } else {
 
+                        let forbidden: number[];
+
                         if (attackRayToKing.length > 0) {
                             // Square just after the king on the attack line
-                            const forbidden =
-                                attackRayToKing[attackRayToKing.length - 1];
+                            forbidden =
+                                [attackRayToKing[attackRayToKing.length - 1]];
 
-                            moves = moves.filter(m => m.to !== forbidden);
+                        } else {
+                            forbidden = [
+                                from - 15,
+                                from - 13,
+                                from + 13,
+                                from + 15
+                            ]
                         }
 
                         // King must move to a safe square
-                        moves = moves.filter(m => !allOpponentsMoves.has(m.to));
+                        moves = moves.filter(m => !forbidden.includes(m.to))
+                                     .filter(m => !allOpponentsMoves.has(m.to)
+                        );
                     }
                 }
             }
