@@ -147,9 +147,11 @@ export class Board {
     this.squares.clear();
   }*/
 
-  // Clone board
-  /*clone(): Board {
-    return new Board();
-  }*/
+  public clone(): Board {
+    const pieces = Array.from(this.pieces.values());
+    const positions = pieces.map(p => this.piecePositions.get(p.id)!);
+
+    return new Board([pieces, positions]);
+  }
 
 }

@@ -50,9 +50,15 @@ export class ClassicRuleSet implements RuleSet {
             castleMoves.push(...castle)
 
         }
+
         let moves = pseudoLegalMoves.map(to => 
             this.moveGenerator.buildMove(pieceId, from, to)
         );
+
+        let allOpponentsMoves: Set<number> = new Set();
+
+        let boardClone = board.clone();
+
         if(promotionMove) {
             moves = moves.map(m => promotionMove.to === m.to ? promotionMove: m)
         }
@@ -62,24 +68,55 @@ export class ClassicRuleSet implements RuleSet {
 
         moves.push(...castleMoves);
 
-        if(playerState === PlayerState.CHECK) {
+        if (playerState === PlayerState.CHECK) {
             const history = game.getHistory();
             const lastMove = history[history.length - 1];
+
+            for (const [pieceId, _] of lastMove.check!)
+                boardClone.removePiece(pieceId);
+
+            allOpponentsMoves = this.moveGenerator
+                .generateAllOpponentsMoves(boardClone, selectedPiece.color);
+
             for (const [pieceId, colors] of lastMove.check!) {
                 const attackerPos = board.getPositionOf(pieceId)!;
+
                 if (colors.includes(selectedPiece.color)) {
-                    const pathToKing = this.getPathToCheckedKing(
+                    const attackRayToKing = this.getAttackRayToKing(
                         pieceId,
                         selectedPiece.color,
                         board
                     );
-                    moves = moves.filter(m =>
-                        !pathToKing.some(pos => pos === m.to) ||
-                        m.to === attackerPos
-                    );
+
+                    if (selectedPiece.type !== PieceType.KING) {
+                        if (attackRayToKing.length === 0) {
+                            // Cavalier : seule la capture de l'attaquant est possible
+                            moves = moves.filter(m => m.to === attackerPos);
+                        } else {
+                            // Pièce glissante : interposition ou capture
+                            moves = moves.filter(m =>
+                                attackRayToKing.includes(m.to)
+                            );
+                        }
+                    } else {
+
+                        if (attackRayToKing.length > 0) {
+                            // Square just after the king on the attack line
+                            const forbidden =
+                                attackRayToKing[attackRayToKing.length - 1];
+
+                            moves = moves.filter(m => m.to !== forbidden);
+                        }
+
+                        // King must move to a safe square
+                        moves = moves.filter(m => !allOpponentsMoves.has(m.to));
+                    }
                 }
             }
 
+            if (selectedPiece.type === PieceType.KING) {
+                moves = moves.filter(m => !allOpponentsMoves.has(m.to));
+            }
         }
 
         return moves;
@@ -243,7 +280,7 @@ export class ClassicRuleSet implements RuleSet {
         return checkInfos;
     }
 
-    private getPathToCheckedKing(pieceId: string, kingColor: Color, board: Board): number[] {
+    private getAttackRayToKing(pieceId: string, kingColor: Color, board: Board): number[] {
         const kingPos = board.getPositionOf(`K-${kingColor}`);
         const attackerPos = board.getPositionOf(pieceId);
 
@@ -252,29 +289,29 @@ export class ClassicRuleSet implements RuleSet {
         }
 
         const delta = kingPos - attackerPos;
+        const absDelta = Math.abs(delta);
 
-        const step =
-            delta < 13 ? 1 :
-            delta % 14 === 0 ? 14 :
-            delta % 15 === 0 ? 15 :
-            delta % 13 === 0 ? 13 :
-            0;
+        let step = 0;
 
-        if (step === 0) {
-            return [kingPos];
-        }
+        if (absDelta < 13) step = 1;
+        else if (absDelta % 14 === 0) step = 14;
+        else if (absDelta % 15 === 0) step = 15;
+        else if (absDelta % 13 === 0) step = 13;
+        else return []; // no interposition path
 
-        const direction = kingPos > attackerPos ? 1 : -1;
-
+        const direction = delta > 0 ? 1 : -1;
         const result: number[] = [];
 
         for (
-            let pos = attackerPos + direction * step;
-            pos !== kingPos + direction * step;
+            let pos = attackerPos;
+            pos !== kingPos;
             pos += direction * step
         ) {
             result.push(pos);
         }
+
+        // The square right after the king on the same attack line
+        result.push(kingPos + direction * step);
 
         return result;
     }

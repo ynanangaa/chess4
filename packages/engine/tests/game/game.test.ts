@@ -3,6 +3,7 @@ import { describe, expect, test } from '@jest/globals';
 import { ClassicRuleSet, Color, Game, GameStatus, 
   MoveGenerator, PieceType, PlayerState, 
   buildDuplicatePiece, buildKing, buildPawn, 
+  buildQueen, 
   parseSquareId 
 } from '../../src';
 
@@ -133,4 +134,389 @@ describe('Game', () => {
     expect(history[0].check?.get(redRook.id)).not.toContain(Color.YELLOW);
     expect(history[0].check?.get(redRook.id)).toContain(Color.GREEN);
   });
+
+  test('filters legal moves when checked by a rook', () => {
+    const redKing = buildKing(Color.RED);
+    const redBishop = buildDuplicatePiece(Color.RED, PieceType.BISHOP, true);
+    const redRook = buildDuplicatePiece(Color.RED, PieceType.ROOK, false);
+
+    const blueKing = buildKing(Color.BLUE);
+    const yellowKing = buildKing(Color.YELLOW);
+    const greenKing = buildKing(Color.GREEN);
+
+    const greenRook = buildDuplicatePiece(Color.GREEN, PieceType.ROOK, true);
+
+    const customGame = new Game(
+      new ClassicRuleSet(new MoveGenerator()),
+      [[
+        redKing,
+        redBishop,
+        redRook,
+        blueKing,
+        yellowKing,
+        greenKing,
+        greenRook
+      ], [
+        parseSquareId(1, 8),   // red king
+        parseSquareId(3, 7),   // red bishop
+        parseSquareId(1, 4),
+
+        parseSquareId(10, 1),
+        parseSquareId(14, 8),
+        parseSquareId(8, 14),
+
+        parseSquareId(7, 11)   // checking rook
+      ]]
+    );
+
+    // Simulate that the rook has just checked the red king
+    const greenRookMove = customGame
+      .getLegalMoves(greenRook.id)
+      .find(m => m.to === parseSquareId(1, 11)
+    );
+    expect(greenRookMove).toBeDefined();
+
+    customGame.applyMove(greenRookMove!);
+
+    expect(customGame.getGameState().getPlayerState(Color.RED))
+      .toBe(PlayerState.CHECK);
+
+    const bishopMoves = customGame.getLegalMoves(redBishop.id);
+
+    // Interposition allowed
+    expect(bishopMoves).toContainEqual(
+      expect.objectContaining({ to: parseSquareId(1, 9) })
+    );
+
+    // Unrelated move must be filtered out
+    expect(bishopMoves).not.toContainEqual(
+      expect.objectContaining({ to: parseSquareId(2, 8) })
+    );
+
+    const kingMoves = customGame.getLegalMoves(redKing.id);
+
+    // No castle while in check
+    expect(
+      kingMoves.some(
+        m => m.castle === "queenside"
+      )
+    ).toBe(false);
+  });
+
+  test('filters legal moves when checked by a knight', () => {
+    const redKing = buildKing(Color.RED);
+    const redBishop = buildDuplicatePiece(Color.RED, PieceType.BISHOP, true);
+    const redRook = buildDuplicatePiece(Color.RED, PieceType.ROOK, true);
+    const redKnight = buildDuplicatePiece(Color.RED, PieceType.KNIGHT, true);
+
+    const blueKing = buildKing(Color.BLUE);
+    const yellowKing = buildKing(Color.YELLOW);
+    const greenKing = buildKing(Color.GREEN);
+
+    const greenKnight = buildDuplicatePiece(Color.GREEN, PieceType.KNIGHT, true);
+
+    const customGame = new Game(
+      new ClassicRuleSet(new MoveGenerator()),
+      [[
+        redKing,
+        redBishop,
+        redRook,
+        redKnight,
+        blueKing,
+        yellowKing,
+        greenKing,
+        greenKnight
+      ], [
+        parseSquareId(1, 7),   // red king
+        parseSquareId(3, 5),   // red bishop
+        parseSquareId(1, 11),
+        parseSquareId(1, 9),   // red knight
+
+        parseSquareId(10, 1),
+        parseSquareId(14, 8),
+        parseSquareId(7, 14),
+
+        parseSquareId(4, 10)    // checking knight
+      ]]
+    );
+
+    const greenKnightMove = customGame
+      .getLegalMoves(greenKnight.id)
+      .find(m => m.to === parseSquareId(3, 8)
+    )
+    expect(greenKnightMove).toBeDefined();
+
+    customGame.applyMove(greenKnightMove!);
+
+    expect(customGame.getGameState().getPlayerState(Color.RED))
+      .toBe(PlayerState.CHECK);
+
+    const bishopMoves = customGame.getLegalMoves(redBishop.id);
+
+    // A bishop cannot interpose against a knight check
+    expect(bishopMoves).toEqual([]);
+
+    const knightMoves = customGame.getLegalMoves(redKnight.id);
+
+    // Capturing the checking knight is allowed
+    expect(knightMoves).toContainEqual(
+      expect.objectContaining({ to: parseSquareId(3, 8) })
+    );
+
+    const kingMoves = customGame.getLegalMoves(redKing.id);
+
+    // No castle while in check
+    expect(
+      kingMoves.some(
+        m => m.castle === "kingside"))
+      .toBe(false);
+  });
+
+  test('forbids castling through an attacked square', () => {
+    const redKing = buildKing(Color.RED);
+    const redRook = buildDuplicatePiece(Color.RED, PieceType.ROOK, true);
+
+    const blueKing = buildKing(Color.BLUE);
+    const yellowKing = buildKing(Color.YELLOW);
+    const greenKing = buildKing(Color.GREEN);
+
+    const greenQueen = buildQueen(Color.GREEN);
+
+    const customGame = new Game(
+      new ClassicRuleSet(new MoveGenerator()),
+      [[
+        redKing,
+        redRook,
+        blueKing,
+        yellowKing,
+        greenKing,
+        greenQueen
+      ], [
+        parseSquareId(1, 8),   // red king
+        parseSquareId(1, 11),  // kingside rook
+
+        parseSquareId(10, 1),
+        parseSquareId(14, 8),
+        parseSquareId(7, 14),
+
+        parseSquareId(5, 9)    // attacks the square the king would cross
+      ]]
+    );
+
+    const kingMoves = customGame.getLegalMoves(redKing.id);
+
+    expect(
+      kingMoves.some(m => m.castle === 'kingside')
+    ).toBe(false);
+  });
+
+  test('allows only king moves during double check', () => {
+    const redKing = buildKing(Color.RED);
+    const redKnight = buildDuplicatePiece(Color.RED, PieceType.KNIGHT, true);
+
+    const blueKing = buildKing(Color.BLUE);
+    const yellowKing = buildKing(Color.YELLOW);
+    const greenKing = buildKing(Color.GREEN);
+
+    const greenRook = buildDuplicatePiece(Color.GREEN, PieceType.ROOK, true);
+    const greenBishop = buildDuplicatePiece(Color.GREEN, PieceType.BISHOP, true);
+
+    const customGame = new Game(
+      new ClassicRuleSet(new MoveGenerator()),
+      [[
+        redKing,
+        redKnight,
+        blueKing,
+        yellowKing,
+        greenKing,
+        greenRook,
+        greenBishop
+      ], [
+        parseSquareId(1, 7),   // red king
+        parseSquareId(3, 11),   // red knight
+
+        parseSquareId(10, 1),
+        parseSquareId(14, 8),
+        parseSquareId(7, 14),
+
+        parseSquareId(1, 11),  // rook
+        parseSquareId(5, 11)   // bishop
+      ]]
+    );
+
+    // Le fou se déplace pour créer le double check
+    const bishopMove = customGame
+      .getLegalMoves(greenBishop.id)
+      .find(m => m.to === parseSquareId(3, 9));
+
+    expect(bishopMove).toBeDefined();
+
+    expect(customGame.applyMove(bishopMove!)).toBe(true);
+
+    expect(customGame.getGameState().getPlayerState(Color.RED))
+      .toBe(PlayerState.CHECK);
+
+    // Une pièce non-roi ne peut pas jouer
+    expect(customGame.getLegalMoves(redKnight.id)).toEqual([]);
+
+    // Le roi conserve des coups de fuite
+    expect(customGame.getLegalMoves(redKing.id).length)
+      .toBeGreaterThan(0);
+  });
+
+  test('filters king moves after a check', () => {
+    const redKing = buildKing(Color.RED);
+
+    const blueKing = buildKing(Color.BLUE);
+    const yellowKing = buildKing(Color.YELLOW);
+    const greenKing = buildKing(Color.GREEN);
+
+    const greenRook = buildDuplicatePiece(Color.GREEN, PieceType.ROOK, true);
+
+    const customGame = new Game(
+      new ClassicRuleSet(new MoveGenerator()),
+      [[
+        redKing,
+        blueKing,
+        yellowKing,
+        greenKing,
+        greenRook
+      ], [
+        parseSquareId(2, 7),   // red king
+
+        parseSquareId(10, 1),
+        parseSquareId(13, 9),
+        parseSquareId(7, 14),
+
+        parseSquareId(1, 11)   // rook
+      ]]
+    );
+
+    // La tour donne échec
+    const rookMove = customGame
+      .getLegalMoves(greenRook.id)
+      .find(m => m.to === parseSquareId(1, 9));
+
+    expect(rookMove).toBeDefined();
+
+    expect(customGame.applyMove(rookMove!)).toBe(true);
+
+    expect(customGame.getGameState().getPlayerState(Color.RED))
+      .toBe(PlayerState.CHECK);
+
+    const kingMoves = customGame.getLegalMoves(yellowKing.id);
+
+    // Le roi ne peut pas avancer dans la ligne d'attaque
+    expect(kingMoves).not.toContainEqual(
+      expect.objectContaining({ to: parseSquareId(14, 9) })
+    );
+
+    expect(kingMoves).toContainEqual(
+      expect.objectContaining({ to: parseSquareId(13, 8) })
+    );
+
+    // Il doit avoir au moins une case de fuite
+    expect(kingMoves.length).toBeGreaterThan(0);
+    expect(kingMoves.length).toBeLessThan(8);
+  });
+
+  test('detects a discovered check after a blocking piece moves', () => {
+    const redKing = buildKing(Color.RED);
+
+    const blueKing = buildKing(Color.BLUE);
+    const yellowKing = buildKing(Color.YELLOW);
+    const greenKing = buildKing(Color.GREEN);
+
+    const greenRook = buildDuplicatePiece(Color.GREEN, PieceType.ROOK, true);
+    const greenKnight = buildDuplicatePiece(Color.GREEN, PieceType.KNIGHT, true);
+
+    const customGame = new Game(
+      new ClassicRuleSet(new MoveGenerator()),
+      [[
+        redKing,
+        blueKing,
+        yellowKing,
+        greenKing,
+        greenRook,
+        greenKnight
+      ], [
+        parseSquareId(1, 7),   // red king
+
+        parseSquareId(10, 1),
+        parseSquareId(14, 8),
+        parseSquareId(7, 14),
+
+        parseSquareId(1, 11),  // rook
+        parseSquareId(1, 9)    // knight blocking the rook
+      ]]
+    );
+
+    const knightMove = customGame
+      .getLegalMoves(greenKnight.id)
+      .find(m => m.to === parseSquareId(3, 10));
+
+    expect(knightMove).toBeDefined();
+
+    expect(customGame.applyMove(knightMove!)).toBe(true);
+
+    expect(customGame.getGameState().getPlayerState(Color.RED))
+      .toBe(PlayerState.CHECK);
+
+    const history = customGame.getHistory();
+    const lastMove = history[history.length - 1];
+
+    expect(lastMove.check).toBeDefined();
+    expect(lastMove.check!.has(greenRook.id)).toBe(true);
+  });
+
+  test('prevents the king from capturing a protected adjacent attacker', () => {
+    const redKing = buildKing(Color.RED);
+
+    const blueKing = buildKing(Color.BLUE);
+    const yellowKing = buildKing(Color.YELLOW);
+    const greenKing = buildKing(Color.GREEN);
+
+    const greenRook = buildDuplicatePiece(Color.GREEN, PieceType.ROOK, true);
+    const blueKnight = buildDuplicatePiece(Color.BLUE, PieceType.KNIGHT, true);
+
+    const customGame = new Game(
+      new ClassicRuleSet(new MoveGenerator()),
+      [[
+        redKing,
+        blueKing,
+        yellowKing,
+        greenKing,
+        greenRook,
+        blueKnight
+      ], [
+        parseSquareId(1, 7),   // red king
+
+        parseSquareId(10, 1),
+        parseSquareId(14, 8),
+        parseSquareId(7, 14),
+
+        parseSquareId(3, 7),   // rook
+        parseSquareId(4, 8)    // knight protecting g2
+      ]]
+    );
+
+    const rookMove = customGame
+      .getLegalMoves(greenRook.id)
+      .find(m => m.to === parseSquareId(2, 7));
+
+    expect(rookMove).toBeDefined();
+
+    expect(customGame.applyMove(rookMove!)).toBe(true);
+
+    expect(customGame.getGameState().getPlayerState(Color.RED))
+      .toBe(PlayerState.CHECK);
+
+    const kingMoves = customGame.getLegalMoves(redKing.id);
+
+    // The rook on g2 is protected by the bishop, so the king cannot capture it
+    expect(kingMoves).not.toContainEqual(
+      expect.objectContaining({ to: parseSquareId(2, 7) })
+    );
+  });
+
 });
