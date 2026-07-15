@@ -36,7 +36,6 @@ describe('King pseudo legal moves', () => {
       { row: 1, col: 'e' },
       { row: 2, col: 'd' },
       { row: 2, col: 'e' },
-      { row: 14, col: 'd' },
     ]));
   });
 

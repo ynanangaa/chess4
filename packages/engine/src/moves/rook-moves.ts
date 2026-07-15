@@ -1,5 +1,5 @@
 import { Board } from "../board";
-import { Color, Piece } from "../types";
+import { Color, Piece, SquareCoordsOffset } from "../types";
 import { slidingMoves } from "../utils";
 
 export function rookCastleDirectionOffset(color: Color, kingSide: "kingside" | "queenside"): number {
@@ -15,12 +15,12 @@ export function rookCastleDirectionOffset(color: Color, kingSide: "kingside" | "
   else return 1;
 }
 
-export function rookDirectionOffsets(): number[] {
+export function rookDirectionOffsets(): SquareCoordsOffset[] {
   return [
-    -1 // down
-    , 1 // up
-    , -14 // left
-    , 14 // right
+    { rowDelta: -1, colDelta: 0 }, // down
+    { rowDelta: 1, colDelta: 0 }, // up
+    { rowDelta: 0, colDelta: -1 }, // left
+    { rowDelta: 0, colDelta: 1 } // right
   ]
 }
 

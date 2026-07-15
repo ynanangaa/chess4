@@ -1,31 +1,46 @@
-import { Color } from "../types";
+import { Color, SquareCoordsOffset } from "../types";
 import { Board } from "../board";
-import { pushIfOccupantIsEnemy } from "../utils";
+import { inverseParseCol, parseSquareCoords, parseSquareId, pushIfOccupantIsEnemy, translateSquareCoords } from "../utils";
 import { Piece } from "../types";
 
-export function forwardDirectionOffsets(color: Color): number {
+export function forwardDirection(color: Color): SquareCoordsOffset {
   switch (color) {
     case Color.RED:
-      return 1;
+      return { rowDelta: 1, colDelta: 0 };
     case Color.YELLOW:
-      return -1;
+      return { rowDelta: -1, colDelta: 0 };
     case Color.BLUE:
-      return 14;
+      return { rowDelta: 0, colDelta: 1 };
     case Color.GREEN:
-      return -14;
+      return { rowDelta: 0, colDelta: -1 };
   }
 }
 
-function captureDirectionOffsets(color: Color): number[] {
+function captureDirections(color: Color): SquareCoordsOffset[] {
   switch (color) {
     case Color.RED:
-      return [-13, 15];
+      return [
+        { rowDelta: 1, colDelta: -1 },
+        { rowDelta: 1, colDelta: 1 }
+      ];
+
     case Color.YELLOW:
-      return [-15, 13];
+      return [
+        { rowDelta: -1, colDelta: -1 },
+        { rowDelta: -1, colDelta: 1 }
+      ];
+
     case Color.BLUE:
-      return [13, 15];
+      return [
+        { rowDelta: -1, colDelta: 1 },
+        { rowDelta: 1, colDelta: 1 }
+      ];
+
     case Color.GREEN:
-      return [-15, -13];
+      return [
+        { rowDelta: -1, colDelta: -1 },
+        { rowDelta: 1, colDelta: -1 }
+      ];
   }
 }
 
@@ -43,20 +58,38 @@ export function enPassantCapturedPawnSquare(moveTo: number, color: Color): numbe
 }
 
 export function pawnMoves(pawn: Piece, position: number, board: Board): number[] {
-  
-  // Standard forward move
-  const moves: number[] = [];
-  const forwardOffset = forwardDirectionOffsets(pawn.color);
-  const forwardPosition = position + forwardOffset;
 
-  if (board.isValidSquare(forwardPosition) && !board.isOccupied(forwardPosition)) {
-    moves.push(forwardPosition);
+  const moves: number[] = [];
+  const currentPosCoords = parseSquareCoords(position);
+
+  // Forward move
+  const forwardOffset = forwardDirection(pawn.color);
+  const forwardCoords = translateSquareCoords(currentPosCoords, forwardOffset);
+
+  if (forwardCoords) {
+    const forwardPosition = parseSquareId(
+      forwardCoords.row, 
+       inverseParseCol(forwardCoords.col)
+    );
+
+    if (board.isValidSquare(forwardPosition) && !board.isOccupied(forwardPosition)) {
+      moves.push(forwardPosition);
+    }
   }
 
-  // Diagonal captures
-  const captureOffsets = captureDirectionOffsets(pawn.color);
+  // Captures
+  const captureOffsets = captureDirections(pawn.color);
+
   for (const offset of captureOffsets) {
-    const capturePosition = position + offset;
+    const captureCoords = translateSquareCoords(currentPosCoords, offset);
+
+    if (!captureCoords) continue;
+
+    const capturePosition = parseSquareId(
+      captureCoords.row, 
+      inverseParseCol(captureCoords.col)
+    );
+
     if (board.isValidSquare(capturePosition)) {
       pushIfOccupantIsEnemy(moves, pawn, board, capturePosition);
     }

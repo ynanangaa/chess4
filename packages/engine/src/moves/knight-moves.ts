@@ -1,18 +1,38 @@
 import { Board } from "../board";
-import { Piece } from "../types";
-import { pushIfEmptyOrEnemy } from "../utils";
+import { Piece, SquareCoordsOffset } from "../types";
+import { inverseParseCol, parseSquareCoords, parseSquareId, pushIfEmptyOrEnemy, translateSquareCoords } from "../utils";
 
 export function knightMoves(knight: Piece, position: number, board: Board): number[] {
-  
+
   const moves: number[] = [];
-  const knightTranslations: number[] = [
-    -29, -27, -16, -12, 12, 16, 27, 29 
-  ]
-  for (const transl of knightTranslations) {
-    const newPos = position + transl;
+
+  const knightOffsets: SquareCoordsOffset[] = [
+    { rowDelta: -2, colDelta: -1 },
+    { rowDelta: -2, colDelta: 1 },
+    { rowDelta: -1, colDelta: -2 },
+    { rowDelta: -1, colDelta: 2 },
+    { rowDelta: 1, colDelta: -2 },
+    { rowDelta: 1, colDelta: 2 },
+    { rowDelta: 2, colDelta: -1 },
+    { rowDelta: 2, colDelta: 1 },
+  ];
+
+  const currentPosCoords = parseSquareCoords(position);
+
+  for (const offset of knightOffsets) {
+    const translated = translateSquareCoords(currentPosCoords, offset);
+
+    if (!translated) continue;
+
+    const newPos = parseSquareId(
+      translated.row, 
+      inverseParseCol(translated.col)
+    );
+
     if (board.isValidSquare(newPos)) {
       pushIfEmptyOrEnemy(moves, knight, board, newPos);
     }
   }
+
   return moves;
 }

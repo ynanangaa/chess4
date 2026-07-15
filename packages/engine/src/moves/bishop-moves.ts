@@ -1,13 +1,13 @@
 import { Board } from "../board";
-import { Piece } from "../types";
+import { Piece, SquareCoordsOffset } from "../types";
 import { slidingMoves } from "../utils";
 
-export function bishopDirectionOffsets(): number[] {
+export function bishopDirectionOffsets(): SquareCoordsOffset[] {
   return [
-    -15, // bottom-left
-    15, // up-right
-    -13, // up-left
-    13 // bottom-right
+    { rowDelta: -1, colDelta: -1 }, // bottom-left
+    { rowDelta: 1, colDelta: 1 }, // up-right
+    { rowDelta: 1, colDelta: -1 }, // up-left
+    { rowDelta: -1, colDelta: 1 } // bottom-right
   ]
 }
 

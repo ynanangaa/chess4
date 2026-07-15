@@ -254,27 +254,35 @@ export function pushIfEmptyOrEnemy(
 export function slidingMoves(
     pieceId: string, 
     board: Board,
-    directions: number[]
+    offsets: SquareCoordsOffset[]
 ): number[] {
     const moves: number[] = [];
     const piecePosition = board.getPositionOf(pieceId);
     if (!piecePosition) return moves;
     const piece = board.getPiece(pieceId)!;
 
-    for (const direction of directions) {
-        let currentPos = piecePosition;
+    for (const offset of offsets) {
+        let currentPosCoords = parseSquareCoords(piecePosition);
         while (true) {
-            const translatedPos = currentPos + direction;
-            if (!board.isValidSquare(translatedPos)) break;
-            const occupant = board.getPieceAt(translatedPos);
+            const translated = translateSquareCoords(currentPosCoords, offset);
+
+            if (!translated) break;
+
+            const newPosition = parseSquareId(
+            translated.row, 
+            inverseParseCol(translated.col)
+            );
+
+            if (!board.isValidSquare(newPosition)) break;
+            const occupant = board.getPieceAt(newPosition);
             if (occupant) {
                 if (occupant.color !== piece.color) {
-                    moves.push(translatedPos);
+                    moves.push(newPosition);
                 }
                 break;
             }
-            moves.push(translatedPos);
-            currentPos = translatedPos;
+            moves.push(newPosition);
+            currentPosCoords = translated;
         }
     }
     return moves;

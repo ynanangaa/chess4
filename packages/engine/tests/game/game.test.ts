@@ -405,7 +405,7 @@ describe('Game', () => {
 
     expect(customGame.applyMove(rookMove!)).toBe(true);
 
-    expect(customGame.getGameState().getPlayerState(Color.RED))
+    expect(customGame.getGameState().getPlayerState(Color.YELLOW))
       .toBe(PlayerState.CHECK);
 
     const kingMoves = customGame.getLegalMoves(yellowKing.id);

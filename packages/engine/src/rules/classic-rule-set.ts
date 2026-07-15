@@ -1,6 +1,6 @@
 import { RuleSet } from "./rule-set";
 import { Game, GameState } from "../game";
-import { castleDirectionOffset, forwardDirectionOffsets, Move, MoveGenerator } from "../moves";
+import { castleDirectionOffset, forwardDirection, Move, MoveGenerator } from "../moves";
 import { Color, GameStatus, Piece, PieceType, PlayerState } from "../types";
 import { EN_PASSANT_SQUARES_IDS } from "./en-passant-squares-ids";
 import { Board } from "../board";
@@ -59,6 +59,15 @@ export class ClassicRuleSet implements RuleSet {
 
         moves.push(...castleMoves);
 
+        // King moves filtering
+        if (selectedPiece.type === PieceType.KING &&
+            playerState !== PlayerState.CHECK
+        ) {
+            allOpponentsMoves = this.moveGenerator
+                .generateAllOpponentsMoves(board, selectedPiece.color);
+        }
+
+        // Other pieces filtering
         if (playerState === PlayerState.CHECK) {
             const history = game.getHistory();
 
@@ -98,6 +107,15 @@ export class ClassicRuleSet implements RuleSet {
                             }
                         } else {
 
+                            const attacker = board.getPiece(pieceId)!;
+
+                            const attackerMoves = 
+                                new Set(this.moveGenerator
+                                    .generateMovesForPiece(attacker, board)
+                                );
+
+                            moves = moves.filter(m => !attackerMoves.has(m.to));
+
                             let forbidden: number[];
 
                             if (attackRayToKing.length > 0) {
@@ -115,9 +133,7 @@ export class ClassicRuleSet implements RuleSet {
                             }
 
                             // King must move to a safe square
-                            moves = moves.filter(m => !forbidden.includes(m.to))
-                                        .filter(m => !allOpponentsMoves.has(m.to)
-                            );
+                            moves = moves.filter(m => !forbidden.includes(m.to));
                         }
                     }
                 }
@@ -125,15 +141,18 @@ export class ClassicRuleSet implements RuleSet {
             }
         }
 
+        moves = moves.filter(m => !allOpponentsMoves.has(m.to));
+
         return moves;
     }
 
     private getPawnDoubleStep(pawn: Piece, from: number, board: Board): Move | undefined {
-        const direction = forwardDirectionOffsets(pawn.color);
+        const forward = forwardDirection(pawn.color);
 
         if (this.canDoubleSteps(pawn, from)) {
-            const oneStepSquare = from + direction;
-            const doubleStepSquare = oneStepSquare + direction;
+            const oneStepSquare = from + forward.rowDelta + 14 * forward.colDelta;
+            const doubleStepSquare 
+                = oneStepSquare + forward.rowDelta + 14 * forward.colDelta;
 
             if (
                 board.isValidSquare(oneStepSquare) &&
@@ -244,9 +263,9 @@ export class ClassicRuleSet implements RuleSet {
 
     public promotion(pawn: Piece, from: number): Move | undefined {
         if(!this.canPromote(pawn, from)) return undefined;
-        const forward = forwardDirectionOffsets(pawn.color);
+        const forward = forwardDirection(pawn.color);
         return this.moveGenerator.buildMove(
-            pawn.id, from, from + forward,
+            pawn.id, from, from + forward.rowDelta + 14 * forward.colDelta,
             undefined, 'promotion'
         )
     }

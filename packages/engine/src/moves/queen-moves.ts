@@ -2,9 +2,9 @@ import { rookDirectionOffsets } from "./rook-moves";
 import { bishopDirectionOffsets } from "./bishop-moves";
 import { slidingMoves } from "../utils";
 import { Board } from "../board";
-import { Piece } from "../types";
+import { Piece, SquareCoordsOffset } from "../types";
 
-export function queenDirectionOffsets(): number[] {
+export function queenDirectionOffsets(): SquareCoordsOffset[] {
   return [
     ...rookDirectionOffsets(),
     ...bishopDirectionOffsets()

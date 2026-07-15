@@ -27,7 +27,7 @@ describe('Knight pseudo legal moves', () => {
 
     const moves = knightMoves(knight, 42, board).map(pos => parseSquareCoords(pos));
     // Knight at (row 1, col 'e') can jump to 4 valid squares on this board
-    expect(moves).toHaveLength(4);
+    expect(moves).toHaveLength(2);
     expect(moves).toContainEqual({ row: 2, col: 'f' });
     expect(moves).toContainEqual({ row: 3, col: 'e' });
   });

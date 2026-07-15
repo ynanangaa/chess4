@@ -1,6 +1,6 @@
 import { Board } from "../board";
 import { Color, Piece } from "../types";
-import { pushIfEmptyOrEnemy } from "../utils";
+import { inverseParseCol, parseSquareCoords, parseSquareId, pushIfEmptyOrEnemy, translateSquareCoords } from "../utils";
 
 export function castleDirectionOffset(color: Color, kingSide: boolean): number {
   switch (color) {
@@ -22,14 +22,34 @@ export function castleDirectionOffset(color: Color, kingSide: boolean): number {
 export function kingMoves(king: Piece, position: number, board: Board): number[] {
 
   const moves: number[] = [];
-  const kingTranslations = [
-    -15, -14, -13, -1, 1, 13, 14, 15
+
+  const kingOffsets = [
+    { rowDelta: -1, colDelta: -1 },
+    { rowDelta: -1, colDelta: 0 },
+    { rowDelta: -1, colDelta: 1 },
+    { rowDelta: 0, colDelta: -1 },
+    { rowDelta: 0, colDelta: 1 },
+    { rowDelta: 1, colDelta: -1 },
+    { rowDelta: 1, colDelta: 0 },
+    { rowDelta: 1, colDelta: 1 },
   ];
-  for (const transl of kingTranslations) {
-    const newPosition = position + transl;
+
+  const currentPosCoords = parseSquareCoords(position);
+
+  for (const offset of kingOffsets) {
+    const translated = translateSquareCoords(currentPosCoords, offset);
+
+    if (!translated) continue;
+
+    const newPosition = parseSquareId(
+      translated.row, 
+      inverseParseCol(translated.col)
+    );
+
     if (board.isValidSquare(newPosition)) {
       pushIfEmptyOrEnemy(moves, king, board, newPosition);
     }
   }
+
   return moves;
 }
