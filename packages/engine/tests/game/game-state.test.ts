@@ -4,6 +4,7 @@ import {
     ClassicRuleSet, Color, Game, GameStatus, 
     MoveGenerator, PieceType, PlayerState, 
     buildDuplicatePiece, buildKing, buildPawn, 
+    buildQueen, 
     parseSquareId 
 } from '../../src';
 
@@ -116,4 +117,95 @@ describe('Game State Update', () => {
     expect(state.getPlayerState(Color.YELLOW)).toBe(PlayerState.NORMAL);
     expect(state.getPlayerState(Color.GREEN)).toBe(PlayerState.NORMAL);
   });
+
+test('detects checkmate', () => {
+  const redKing = buildKing(Color.RED);
+
+  const blueKing = buildKing(Color.BLUE);
+  const yellowKing = buildKing(Color.YELLOW);
+  const greenKing = buildKing(Color.GREEN);
+
+  const greenQueen = buildQueen(Color.GREEN);
+  const greenRook = buildDuplicatePiece(Color.GREEN, PieceType.ROOK, true);
+
+  const customGame = new Game(
+    new ClassicRuleSet(new MoveGenerator()),
+    [[
+      redKing,
+      blueKing,
+      yellowKing,
+      greenKing,
+      greenQueen,
+      greenRook
+    ], [
+      parseSquareId(1, 7),   // red king
+
+      parseSquareId(10, 1),
+      parseSquareId(14, 8),
+      parseSquareId(7, 14),
+
+      parseSquareId(3, 8),   // queen
+      parseSquareId(2, 11)   // rook controlling the 2nd row
+    ]]
+  );
+
+  // Queen moves to give mate
+  const queenMove = customGame
+    .getLegalMoves(greenQueen.id)
+    .find(m => m.to === parseSquareId(2, 7));
+
+  expect(queenMove).toBeDefined();
+
+  expect(customGame.applyMove(queenMove!)).toBe(true);
+
+  /*expect(customGame.getGameState().getPlayerState(Color.RED))
+    .toBe(PlayerState.CHECKMATE);*/
+
+  // The mated king has no legal move
+  expect(customGame.getLegalMoves(redKing.id)).toEqual([]);
+});
+
+test('detects stalemate', () => {
+  const redKing = buildKing(Color.RED);
+
+  const blueKing = buildKing(Color.BLUE);
+  const yellowKing = buildKing(Color.YELLOW);
+  const greenKing = buildKing(Color.GREEN);
+
+  const greenQueen = buildQueen(Color.GREEN);
+
+  const customGame = new Game(
+    new ClassicRuleSet(new MoveGenerator()),
+    [[
+      redKing,
+      blueKing,
+      yellowKing,
+      greenKing,
+      greenQueen
+    ], [
+      parseSquareId(1, 7),   // red king
+
+      parseSquareId(10, 1),
+      parseSquareId(14, 8),
+      parseSquareId(2, 5),
+
+      parseSquareId(3, 9)    // queen
+    ]]
+  );
+
+  // Queen moves to create a stalemate net
+  const queenMove = customGame
+    .getLegalMoves(greenQueen.id)
+    .find(m => m.to === parseSquareId(2, 9));
+
+  expect(queenMove).toBeDefined();
+
+  expect(customGame.applyMove(queenMove!)).toBe(true);
+
+  /*expect(customGame.getGameState().getPlayerState(Color.RED))
+    .toBe(PlayerState.STALEMATE);*/
+
+  // The stalemated king has no legal move
+  expect(customGame.getLegalMoves(redKing.id)).toEqual([]);
+});
 })

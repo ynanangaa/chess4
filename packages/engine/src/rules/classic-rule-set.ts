@@ -16,6 +16,7 @@ export class ClassicRuleSet implements RuleSet {
         const board = game.getBoard();
         const selectedPiece = board.getPiece(pieceId);
         if (!selectedPiece) return [];
+
         const from = board.getPositionOf(pieceId)!;
 
         const gameState = game.getGameState();
@@ -60,62 +61,67 @@ export class ClassicRuleSet implements RuleSet {
 
         if (playerState === PlayerState.CHECK) {
             const history = game.getHistory();
-            const lastMove = history[history.length - 1];
 
-            for (const [pieceId, _] of lastMove.check!)
-                boardClone.removePiece(pieceId);
+            for (const move of [
+                history[history.length - 1],
+                history[history.length - 2],
+                history[history.length - 3]
+            ]) {
 
-            allOpponentsMoves = this.moveGenerator
-                .generateAllOpponentsMoves(boardClone, selectedPiece.color);
+                if (move?.check === undefined) continue;
 
-            for (const [pieceId, colors] of lastMove.check!) {
-                const attackerPos = board.getPositionOf(pieceId)!;
+                for (const [pieceId, _] of move.check!)
+                    boardClone.removePiece(pieceId);
 
-                if (colors.includes(selectedPiece.color)) {
-                    const attackRayToKing = this.getAttackRayToKing(
-                        pieceId,
-                        selectedPiece.color,
-                        board
-                    );
+                allOpponentsMoves = this.moveGenerator
+                    .generateAllOpponentsMoves(boardClone, selectedPiece.color);
 
-                    if (selectedPiece.type !== PieceType.KING) {
-                        if (attackRayToKing.length === 0) {
-                            // Cavalier : seule la capture de l'attaquant est possible
-                            moves = moves.filter(m => m.to === attackerPos);
+                for (const [pieceId, colors] of move.check!) {
+                    const attackerPos = board.getPositionOf(pieceId)!;
+
+                    if (colors.includes(selectedPiece.color)) {
+                        const attackRayToKing = this.getAttackRayToKing(
+                            pieceId,
+                            selectedPiece.color,
+                            board
+                        );
+
+                        if (selectedPiece.type !== PieceType.KING) {
+                            if (attackRayToKing.length === 0) {
+                                // Cavalier : seule la capture de l'attaquant est possible
+                                moves = moves.filter(m => m.to === attackerPos);
+                            } else {
+                                // Pièce glissante : interposition ou capture
+                                moves = moves.filter(m =>
+                                    attackRayToKing.includes(m.to)
+                                );
+                            }
                         } else {
-                            // Pièce glissante : interposition ou capture
-                            moves = moves.filter(m =>
-                                attackRayToKing.includes(m.to)
+
+                            let forbidden: number[];
+
+                            if (attackRayToKing.length > 0) {
+                                // Square just after the king on the attack line
+                                forbidden =
+                                    [attackRayToKing[attackRayToKing.length - 1]];
+
+                            } else {
+                                forbidden = [
+                                    from - 15,
+                                    from - 13,
+                                    from + 13,
+                                    from + 15
+                                ]
+                            }
+
+                            // King must move to a safe square
+                            moves = moves.filter(m => !forbidden.includes(m.to))
+                                        .filter(m => !allOpponentsMoves.has(m.to)
                             );
                         }
-                    } else {
-
-                        let forbidden: number[];
-
-                        if (attackRayToKing.length > 0) {
-                            // Square just after the king on the attack line
-                            forbidden =
-                                [attackRayToKing[attackRayToKing.length - 1]];
-
-                        } else {
-                            forbidden = [
-                                from - 15,
-                                from - 13,
-                                from + 13,
-                                from + 15
-                            ]
-                        }
-
-                        // King must move to a safe square
-                        moves = moves.filter(m => !forbidden.includes(m.to))
-                                     .filter(m => !allOpponentsMoves.has(m.to)
-                        );
                     }
                 }
-            }
 
-            if (selectedPiece.type === PieceType.KING) {
-                moves = moves.filter(m => !allOpponentsMoves.has(m.to));
             }
         }
 
@@ -322,23 +328,51 @@ export class ClassicRuleSet implements RuleSet {
         if(state.getStatus() === GameStatus.RUNNING) {
             const history = game.getHistory();
             const lastMove = history[history.length - 1];
-            if(lastMove && lastMove.check !== undefined) {
-                const checkInfos = lastMove.check;
+
+            const piecePlayed = game.getBoard().getPiece(lastMove.pieceId)!;
+            const playerState = state.getPlayerState(piecePlayed.color);
+            
+            if(playerState === PlayerState.CHECK) {
+                state.setPlayerState(piecePlayed.color, PlayerState.NORMAL);
+            }
+
+            const currentPlayerColor = game.getCurrentPlayerColor();
+
+            if(state.getPlayerState(currentPlayerColor) === PlayerState.NORMAL &&
+                this.isPlayerMate(currentPlayerColor, game)
+            ) {
+                state.setPlayerState(piecePlayed.color, PlayerState.STALEMATE);
+            }
+
+            if(lastMove.check !== undefined) {
                 const kingColors: Color[] = [];
+                const checkInfos = lastMove.check;
                 for (const v of checkInfos.values())
                     kingColors.push(...v);
                 for (const color of new Set(kingColors)) {
-                    state.setPlayerState(color, PlayerState.CHECK);
+                    if(currentPlayerColor === color &&
+                        this.isPlayerMate(color, game))
+                        state.setPlayerState(color, PlayerState.CHECKMATE);
+                    else
+                        state.setPlayerState(color, PlayerState.CHECK);
                 }
-            } else {
-                for (const color of [Color.RED, Color.BLUE, Color.YELLOW, Color.GREEN]) {
-                    const playerState = state.getPlayerState(color);
-                    if(playerState !== PlayerState.NORMAL)
-                        state.setPlayerState(color, PlayerState.NORMAL);
-                }
-                    
             }
+
         }
+
         return state ; // Placeholder implementation
+    }
+
+    public isPlayerMate(player: Color, game: Game): boolean {
+        const board = game.getBoard();
+        const pieces = board.getPiecesByColor(player);
+        for (const p of pieces) {
+            const pieceLegalMoves = this.getLegalMoves(p.id, game);
+            if (pieceLegalMoves.length > 0) {
+                return false;
+            }
+
+        }
+        return true;
     }
 }

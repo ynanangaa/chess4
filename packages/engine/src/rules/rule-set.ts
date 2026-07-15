@@ -26,4 +26,7 @@ export interface RuleSet {
 
   // Return colors of the players in check status following a move
   getCheckInfos(player: Color, game: Game): Map<string, Color[]>;
+
+  // Check if a player is mate and updates his state
+  isPlayerMate(player: Color, game: Game): boolean;
 }

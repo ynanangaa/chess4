@@ -3,7 +3,7 @@ import { Move, rookCastleDirectionOffset } from "../moves";
 import { enPassantCapturedPawnSquare } from "../moves/pawn-moves";
 import { RuleSet } from "../rules";
 import { Player } from "../players";
-import { Color, Piece, PieceType } from "../types";
+import { Color, Piece, PieceType, PlayerState } from "../types";
 import { GameState } from "./game-state";
 
 export class Game {
@@ -12,6 +12,12 @@ export class Game {
   private movedPieces: Set<string> = new Set(); // Set parsing of history
   private players: Player[] = [];
   private gameState: GameState;
+  private readonly nextPlayerColor: Map<Color, Color> = new Map([
+    [Color.RED, Color.BLUE],
+    [Color.BLUE, Color.YELLOW],
+    [Color.YELLOW, Color.GREEN],
+    [Color.GREEN, Color.RED]
+  ]);
 
   constructor(private ruleSet: RuleSet, initialPieces?: [Piece[], number[]], history?: Move[]) {
     this.board = new Board(initialPieces);
@@ -82,6 +88,7 @@ export class Game {
       } else {
         this.history.push(move);
       }
+
       this.movedPieces.add(move.pieceId);
 
       this.updateGameState();
@@ -106,8 +113,11 @@ export class Game {
 
   public getCurrentPlayerColor(): Color {
     // determine current player based on history length of a 4-player game
-    const colors = this.players.map(player => player.getColor());
-    return colors[this.history.length % colors.length];
+    const history = this.history;
+    if (history.length === 0) return Color.RED;
+    const lastMove = history[history.length - 1];
+    const previousColor = this.board.getPiece(lastMove.pieceId)!.color;
+    return this.nextPlayerColor.get(previousColor)!;
   }
 
   public getLegalMoves(pieceId: string): Move[] {

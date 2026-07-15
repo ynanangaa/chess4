@@ -23,6 +23,10 @@ export class GameState {
     return this.playerStates.get(color);
   }
 
+  public getPlayerStates(): Map<Color, PlayerState> {
+    return new Map(this.playerStates.entries());
+  }
+
   // Mutators
   public setStatus(status: GameStatus): void {
     this.status = status;
