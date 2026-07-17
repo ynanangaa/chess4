@@ -394,9 +394,7 @@ export class ClassicRuleSet implements RuleSet {
   public updateGameState(game: Game): GameState {
     const state = game.getGameState();
     if (state.getStatus() !== GameStatus.RUNNING) return state;
-
-    const history = game.getHistory();
-
+    
     const currentPlayerColor = game.getCurrentPlayerColor();
 
     // Reset all active CHECK states before recomputing them.
