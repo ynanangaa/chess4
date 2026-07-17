@@ -1,20 +1,16 @@
-import { Piece } from "../types";
-import { Color } from "../types";
+import { Color, Piece } from "../types";
+
+export type PlayerStatus = "active" | "inactive";
 
 export class Player {
-  private readonly id: string;
-  private readonly color: Color;
-  private pieces: Map<string, Piece>= new Map();
-  private score: number;
-  // Status: "active" if the player is still in the game, "inactive" if checkmated, stalemated, or resigned
-  private status: "active" | "inactive";
+  private pieces = new Map<string, Piece>();
+  private score = 0;
+  private status: PlayerStatus = "active";
 
-  constructor(id: string, color: Color) {
-    this.id = id;
-    this.color = color;
-    this.score = 0;
-    this.status = "active";
-  }
+  constructor(
+    private readonly id: string,
+    private readonly color: Color
+  ) {}
 
   public getId(): string {
     return this.id;
@@ -32,15 +28,15 @@ export class Player {
     return this.score;
   }
 
-  public getStatus(): "active" | "inactive" {
+  public getStatus(): PlayerStatus {
     return this.status;
   }
 
   public incrementScore(points: number): void {
     this.score += points;
   }
-  
-  public setStatus(status: "active" | "inactive"): void {
+
+  public setStatus(status: PlayerStatus): void {
     this.status = status;
   }
 }

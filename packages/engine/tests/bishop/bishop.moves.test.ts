@@ -1,7 +1,6 @@
 import { describe, expect, test } from '@jest/globals';
 
 import { Board, buildDuplicatePiece, buildQueen, parseSquareCoords, Color, PieceType, bishopMoves } from '../../src';
-import { sortMoves } from '../test-utils';
 
 describe('Bishop pseudo legal moves', () => {
   test('moves diagonally on an empty area', () => {

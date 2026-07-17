@@ -1,4 +1,3 @@
-/* export all the modules in the engine package */
 export * from './board';
 export * from './game';
 export * from './moves';

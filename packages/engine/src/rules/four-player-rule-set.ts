@@ -1,16 +1,13 @@
-import { ClassicRuleSet } from "./classic-rule-set";
-import { Player } from "../players/player";
-import { MoveGenerator } from "../moves";
 import { Game } from "../game";
+import { MoveGenerator } from "../moves";
+import { ClassicRuleSet } from "./classic-rule-set";
 
 export class FourPlayerRuleSet extends ClassicRuleSet {
+  constructor(moveGenerator: MoveGenerator) {
+    super(moveGenerator);
+  }
 
-    constructor(moveGenerator: MoveGenerator) {
-        super(moveGenerator);
-    }
-
-    public updatePlayersScore(game: Game): void {
-        
-    }
-
+  public updatePlayersScore(_game: Game): void {
+    // Scoring rules are intentionally left for the four-player variant layer.
+  }
 }

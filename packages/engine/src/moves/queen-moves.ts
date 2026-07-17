@@ -1,8 +1,8 @@
-import { rookDirectionOffsets } from "./rook-moves";
-import { bishopDirectionOffsets } from "./bishop-moves";
-import { slidingMoves } from "../utils";
 import { Board } from "../board";
 import { Piece, SquareCoordsOffset } from "../types";
+import { slidingMoves } from "../utils";
+import { bishopDirectionOffsets } from "./bishop-moves";
+import { rookDirectionOffsets } from "./rook-moves";
 
 export function queenDirectionOffsets(): SquareCoordsOffset[] {
   return [
@@ -12,6 +12,5 @@ export function queenDirectionOffsets(): SquareCoordsOffset[] {
 }
 
 export function queenMoves(queen: Piece, board: Board): number[] {
-  const directionOffsets = queenDirectionOffsets();
-  return slidingMoves(queen.id, board, directionOffsets);
+  return slidingMoves(queen.id, board, queenDirectionOffsets());
 }

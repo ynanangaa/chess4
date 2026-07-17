@@ -7,6 +7,6 @@ export interface SquareCoords {
 }
 
 export interface SquareCoordsOffset {
-    rowDelta: number,
-    colDelta: number
+  rowDelta: number;
+  colDelta: number;
 }

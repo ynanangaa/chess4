@@ -1,30 +1,44 @@
 import { Board } from "../board";
 import { Color, Piece, SquareCoordsOffset } from "../types";
 import { slidingMoves } from "../utils";
+import { CastleSide } from "./move";
 
-export function rookCastleDirectionOffset(color: Color, kingSide: "kingside" | "queenside"): number {
-  if ((color === Color.RED && kingSide === "kingside") 
-    ||(color === Color.YELLOW && kingSide === "queenside"))
+const ROOK_DIRECTION_OFFSETS: SquareCoordsOffset[] = [
+  { rowDelta: -1, colDelta: 0 },
+  { rowDelta: 1, colDelta: 0 },
+  { rowDelta: 0, colDelta: -1 },
+  { rowDelta: 0, colDelta: 1 }
+];
+
+export function rookCastleDirectionOffset(color: Color, castleSide: CastleSide): number {
+  if (
+    (color === Color.RED && castleSide === "kingside") ||
+    (color === Color.YELLOW && castleSide === "queenside")
+  ) {
     return -14;
-  else if ((color === Color.RED && kingSide === "queenside") 
-        || (color === Color.YELLOW && kingSide === "kingside"))
+  }
+
+  if (
+    (color === Color.RED && castleSide === "queenside") ||
+    (color === Color.YELLOW && castleSide === "kingside")
+  ) {
     return 14;
-  else if ((color === Color.BLUE && kingSide === "kingside") 
-        || (color === Color.GREEN && kingSide === "queenside"))
+  }
+
+  if (
+    (color === Color.BLUE && castleSide === "kingside") ||
+    (color === Color.GREEN && castleSide === "queenside")
+  ) {
     return -1;
-  else return 1;
+  }
+
+  return 1;
 }
 
 export function rookDirectionOffsets(): SquareCoordsOffset[] {
-  return [
-    { rowDelta: -1, colDelta: 0 }, // down
-    { rowDelta: 1, colDelta: 0 }, // up
-    { rowDelta: 0, colDelta: -1 }, // left
-    { rowDelta: 0, colDelta: 1 } // right
-  ]
+  return [...ROOK_DIRECTION_OFFSETS];
 }
 
 export function rookMoves(rook: Piece, board: Board): number[] {
-  const directionOffsets = rookDirectionOffsets();
-  return slidingMoves(rook.id, board, directionOffsets);
+  return slidingMoves(rook.id, board, ROOK_DIRECTION_OFFSETS);
 }

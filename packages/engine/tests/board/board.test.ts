@@ -1,15 +1,15 @@
 import { describe, expect, test, beforeEach } from '@jest/globals';
 
-import { Board, Color, initializePieces, parseSquareId } from '../../src';
+import { Board, Color, initializePieces, parseSquareId, Piece } from '../../src';
 
 let board: Board;
-let redPieces: any[];
+let redPieces: Piece[];
 let redPositions: number[];
-let bluePieces: any[];
+let bluePieces: Piece[];
 let bluePositions: number[];
-let yellowPieces: any[];
+let yellowPieces: Piece[];
 let yellowPositions: number[];
-let greenPieces: any[];
+let greenPieces: Piece[];
 let greenPositions: number[];
 
 describe('Board', () => {

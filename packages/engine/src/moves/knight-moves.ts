@@ -1,36 +1,29 @@
 import { Board } from "../board";
 import { Piece, SquareCoordsOffset } from "../types";
-import { inverseParseCol, parseSquareCoords, parseSquareId, pushIfEmptyOrEnemy, translateSquareCoords } from "../utils";
+import { parseSquareCoords, pushIfEmptyOrEnemy, toSquareId, translateSquareCoords } from "../utils";
+
+const KNIGHT_OFFSETS: SquareCoordsOffset[] = [
+  { rowDelta: -2, colDelta: -1 },
+  { rowDelta: -2, colDelta: 1 },
+  { rowDelta: -1, colDelta: -2 },
+  { rowDelta: -1, colDelta: 2 },
+  { rowDelta: 1, colDelta: -2 },
+  { rowDelta: 1, colDelta: 2 },
+  { rowDelta: 2, colDelta: -1 },
+  { rowDelta: 2, colDelta: 1 }
+];
 
 export function knightMoves(knight: Piece, position: number, board: Board): number[] {
-
   const moves: number[] = [];
+  const currentCoords = parseSquareCoords(position);
 
-  const knightOffsets: SquareCoordsOffset[] = [
-    { rowDelta: -2, colDelta: -1 },
-    { rowDelta: -2, colDelta: 1 },
-    { rowDelta: -1, colDelta: -2 },
-    { rowDelta: -1, colDelta: 2 },
-    { rowDelta: 1, colDelta: -2 },
-    { rowDelta: 1, colDelta: 2 },
-    { rowDelta: 2, colDelta: -1 },
-    { rowDelta: 2, colDelta: 1 },
-  ];
-
-  const currentPosCoords = parseSquareCoords(position);
-
-  for (const offset of knightOffsets) {
-    const translated = translateSquareCoords(currentPosCoords, offset);
-
+  for (const offset of KNIGHT_OFFSETS) {
+    const translated = translateSquareCoords(currentCoords, offset);
     if (!translated) continue;
 
-    const newPos = parseSquareId(
-      translated.row, 
-      inverseParseCol(translated.col)
-    );
-
-    if (board.isValidSquare(newPos)) {
-      pushIfEmptyOrEnemy(moves, knight, board, newPos);
+    const destination = toSquareId(translated);
+    if (board.isValidSquare(destination)) {
+      pushIfEmptyOrEnemy(moves, knight, board, destination);
     }
   }
 

@@ -1,106 +1,60 @@
 import { Board } from "../board";
 import { Move, rookCastleDirectionOffset } from "../moves";
 import { enPassantCapturedPawnSquare } from "../moves/pawn-moves";
-import { RuleSet } from "../rules";
 import { Player } from "../players";
-import { Color, Piece, PieceType, PlayerState } from "../types";
+import { RuleSet } from "../rules";
+import { Color, Piece, PieceType } from "../types";
 import { GameState } from "./game-state";
+
+const NEXT_PLAYER_COLOR = new Map<Color, Color>([
+  [Color.RED, Color.BLUE],
+  [Color.BLUE, Color.YELLOW],
+  [Color.YELLOW, Color.GREEN],
+  [Color.GREEN, Color.RED]
+]);
 
 export class Game {
   private board: Board;
   private history: Move[];
-  private movedPieces: Set<string> = new Set(); // Set parsing of history
-  private players: Player[] = [];
+  private movedPieces = new Set<string>();
+  private players: Player[];
   private gameState: GameState;
-  private readonly nextPlayerColor: Map<Color, Color> = new Map([
-    [Color.RED, Color.BLUE],
-    [Color.BLUE, Color.YELLOW],
-    [Color.YELLOW, Color.GREEN],
-    [Color.GREEN, Color.RED]
-  ]);
 
-  constructor(private ruleSet: RuleSet, initialPieces?: [Piece[], number[]], history?: Move[]) {
+  constructor(
+    private ruleSet: RuleSet,
+    initialPieces?: [Piece[], number[]],
+    history?: Move[]
+  ) {
     this.board = new Board(initialPieces);
     this.history = history ? history.slice() : [];
     this.players = [
       new Player("P1", Color.RED),
       new Player("P2", Color.BLUE),
       new Player("P3", Color.YELLOW),
-      new Player("P4", Color.GREEN),
+      new Player("P4", Color.GREEN)
     ];
     this.gameState = new GameState();
   }
 
-  // clean up resources if needed
-  destroy(): void {
-    //this.board.destroy();
+  public destroy(): void {
     this.history.length = 0;
-  }
-
-  /*clone(): Game {
-    const g = new Game(this.ruleSet);
-    g.board = this.board.clone();
-    g.history = this.history.slice();
-    return g;
-  }*/
-
-  private updateGameState(): void {
-    this.gameState = this.ruleSet.updateGameState(this);
-  }
-
-  private getCapturedPieceIdForEnPassant(move: Move): string | undefined {
-    if (move.pawnSpecialMove !== 'e-p') return undefined;
-
-    const movingPiece = this.board.getPiece(move.pieceId);
-    if (!movingPiece || movingPiece.type !== PieceType.PAWN) return undefined;
-
-    const capturedSquare = enPassantCapturedPawnSquare(move.to, movingPiece.color);
-    const capturedPiece = this.board.getPieceAt(capturedSquare);
-    if (!capturedPiece || capturedPiece.color === movingPiece.color) return undefined;
-
-    return capturedPiece.id;
+    this.movedPieces.clear();
   }
 
   public applyMove(move: Move): boolean {
-    let m: Move = move;
-    let capture = this.board.getPieceAt(move.to);
-    if (capture !== undefined)
-      m = {...move, capture: capture.id };
+    let appliedMove = this.withDirectCapture(move);
+    const movedPiece = this.board.placePiece(move.pieceId, move.to);
+    if (!movedPiece) return false;
 
-    const result = this.board.placePiece(move.pieceId, move.to);
-    if (result) {
-      const capturedPieceId = this.getCapturedPieceIdForEnPassant(move);
-      if (capturedPieceId) {
-        this.board.removePiece(capturedPieceId);
-        m = {...move, capture: capturedPieceId };
-      }
-      if (move.pawnSpecialMove === 'promotion')
-        this.board.setPromotionPieceType(move.pieceId, PieceType.QUEEN);
+    appliedMove = this.applyEnPassantCapture(appliedMove);
+    this.applyPromotion(move);
+    this.applyCastling(move);
+    this.recordMove(appliedMove, movedPiece.color);
 
-      if (move.castle) {
-        const color = this.board.getPiece(move.pieceId)!.color;
-        const rook = `R-${color}-${move.castle}`;
-        this.board.placePiece(rook, move.to + rookCastleDirectionOffset(color, move.castle));
-        this.movedPieces.add(rook);
-      }
+    this.movedPieces.add(appliedMove.pieceId);
+    this.updateGameState();
 
-      const checkInfos = this.ruleSet.getCheckInfos(result.color, this);
-      if (checkInfos.size > 0) {
-        
-        this.history.push({
-          ...m, 
-          check: checkInfos,
-        });
-      } else {
-        this.history.push(m);
-      }
-
-      this.movedPieces.add(m.pieceId);
-
-      this.updateGameState();
-      return true;
-    }
-    return false;
+    return true;
   }
 
   public getBoard(): Board {
@@ -115,15 +69,13 @@ export class Game {
     return this.gameState;
   }
 
-  //public setGameState()
-
   public getCurrentPlayerColor(): Color {
-    // determine current player based on history length of a 4-player game
-    const history = this.history;
-    if (history.length === 0) return Color.RED;
-    const lastMove = history[history.length - 1];
+    if (this.history.length === 0) return Color.RED;
+
+    const lastMove = this.history[this.history.length - 1];
     const previousColor = this.board.getPiece(lastMove.pieceId)!.color;
-    return this.nextPlayerColor.get(previousColor)!;
+
+    return NEXT_PLAYER_COLOR.get(previousColor)!;
   }
 
   public getLegalMoves(pieceId: string): Move[] {
@@ -134,38 +86,66 @@ export class Game {
     return this.movedPieces.has(pieceId);
   }
 
-  /*undo(): Move | null {
-    if (this.history.length === 0) return null;
-    const mv = this.history.pop() as Move;
-    if (typeof (this.board as any).undoMove === "function") {
-      // @ts-ignore
-      (this.board as any).undoMove(mv);
-    } else if (typeof (this.board as any).setPosition === "function") {
-      // no-op: caller should restore via clone/previous state
+  private updateGameState(): void {
+    this.gameState = this.ruleSet.updateGameState(this);
+  }
+
+  private withDirectCapture(move: Move): Move {
+    const capturedPiece = this.board.getPieceAt(move.to);
+
+    if (!capturedPiece) return move;
+
+    return { ...move, capture: capturedPiece.id };
+  }
+
+  private applyEnPassantCapture(move: Move): Move {
+    const capturedPieceId = this.getCapturedPieceIdForEnPassant(move);
+    if (!capturedPieceId) return move;
+
+    this.board.removePiece(capturedPieceId);
+
+    return { ...move, capture: capturedPieceId };
+  }
+
+  private getCapturedPieceIdForEnPassant(move: Move): string | undefined {
+    if (move.pawnSpecialMove !== "e-p") return undefined;
+
+    const movingPiece = this.board.getPiece(move.pieceId);
+    if (!movingPiece || movingPiece.type !== PieceType.PAWN) return undefined;
+
+    const capturedSquare = enPassantCapturedPawnSquare(move.to, movingPiece.color);
+    const capturedPiece = this.board.getPieceAt(capturedSquare);
+    if (!capturedPiece || capturedPiece.color === movingPiece.color) return undefined;
+
+    return capturedPiece.id;
+  }
+
+  private applyPromotion(move: Move): void {
+    if (move.pawnSpecialMove === "promotion") {
+      this.board.setPromotionPieceType(move.pieceId, PieceType.QUEEN);
     }
-    return mv;
-  }*/
-
-  /*
-
-  isGameOver(): boolean {
-    // try common board methods
-    // @ts-ignore
-    if (typeof (this.board as any).isCheckmate === "function") return (this.board as any).isCheckmate();
-    // @ts-ignore
-    if (typeof (this.board as any).isStalemate === "function") return (this.board as any).isStalemate();
-    return false;
   }
 
-  toString(): string {
-    if (typeof (this.board as any).toString === "function") return (this.board as any).toString();
-    return "Game(board)";
+  private applyCastling(move: Move): void {
+    if (!move.castle) return;
+
+    const color = this.board.getPiece(move.pieceId)!.color;
+    const rookId = `R-${color}-${move.castle}`;
+
+    this.board.placePiece(
+      rookId,
+      move.to + rookCastleDirectionOffset(color, move.castle)
+    );
+    this.movedPieces.add(rookId);
   }
 
-  // convenience: export FEN if board supports it
-  getFEN(): string | null {
-    // @ts-ignore
-    if (typeof (this.board as any).getFEN === "function") return (this.board as any).getFEN();
-    return null;
-  }*/
+  private recordMove(move: Move, color: Color): void {
+    const checkInfos = this.ruleSet.getCheckInfos(color, this);
+
+    this.history.push(
+      checkInfos.size > 0
+        ? { ...move, check: checkInfos }
+        : move
+    );
+  }
 }

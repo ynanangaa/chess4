@@ -1,7 +1,6 @@
-import { Color, SquareCoordsOffset } from "../types";
 import { Board } from "../board";
-import { inverseParseCol, parseSquareCoords, parseSquareId, pushIfOccupantIsEnemy, translateSquareCoords } from "../utils";
-import { Piece } from "../types";
+import { Color, Piece, SquareCoordsOffset } from "../types";
+import { parseSquareCoords, pushIfOccupantIsEnemy, toSquareId, translateSquareCoords } from "../utils";
 
 export function forwardDirection(color: Color): SquareCoordsOffset {
   switch (color) {
@@ -23,19 +22,16 @@ function captureDirections(color: Color): SquareCoordsOffset[] {
         { rowDelta: 1, colDelta: -1 },
         { rowDelta: 1, colDelta: 1 }
       ];
-
     case Color.YELLOW:
       return [
         { rowDelta: -1, colDelta: -1 },
         { rowDelta: -1, colDelta: 1 }
       ];
-
     case Color.BLUE:
       return [
         { rowDelta: -1, colDelta: 1 },
         { rowDelta: 1, colDelta: 1 }
       ];
-
     case Color.GREEN:
       return [
         { rowDelta: -1, colDelta: -1 },
@@ -58,38 +54,23 @@ export function enPassantCapturedPawnSquare(moveTo: number, color: Color): numbe
 }
 
 export function pawnMoves(pawn: Piece, position: number, board: Board): number[] {
-
   const moves: number[] = [];
-  const currentPosCoords = parseSquareCoords(position);
-
-  // Forward move
-  const forwardOffset = forwardDirection(pawn.color);
-  const forwardCoords = translateSquareCoords(currentPosCoords, forwardOffset);
+  const currentCoords = parseSquareCoords(position);
+  const forwardCoords = translateSquareCoords(currentCoords, forwardDirection(pawn.color));
 
   if (forwardCoords) {
-    const forwardPosition = parseSquareId(
-      forwardCoords.row, 
-       inverseParseCol(forwardCoords.col)
-    );
+    const forwardPosition = toSquareId(forwardCoords);
 
     if (board.isValidSquare(forwardPosition) && !board.isOccupied(forwardPosition)) {
       moves.push(forwardPosition);
     }
   }
 
-  // Captures
-  const captureOffsets = captureDirections(pawn.color);
-
-  for (const offset of captureOffsets) {
-    const captureCoords = translateSquareCoords(currentPosCoords, offset);
-
+  for (const offset of captureDirections(pawn.color)) {
+    const captureCoords = translateSquareCoords(currentCoords, offset);
     if (!captureCoords) continue;
 
-    const capturePosition = parseSquareId(
-      captureCoords.row, 
-      inverseParseCol(captureCoords.col)
-    );
-
+    const capturePosition = toSquareId(captureCoords);
     if (board.isValidSquare(capturePosition)) {
       pushIfOccupantIsEnemy(moves, pawn, board, capturePosition);
     }
