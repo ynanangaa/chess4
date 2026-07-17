@@ -101,27 +101,30 @@ export class ClassicRuleSet implements RuleSet {
     const boardClone = board.clone();
     let allOpponentsMoves: Set<number> = new Set();
 
-    for (const move of this.getRecentCheckingMoves(game)) {
-      if (!move.check) continue;
+    const activeChecks = this.getActiveChecks(
+      board,
+      PLAYER_COLORS
+    );
 
-      for (const [attackerId] of move.check) {
-        boardClone.removePiece(attackerId);
-      }
+    for (const attackerId of activeChecks.keys()) {
+      boardClone.removePiece(attackerId);
+    }
 
-      allOpponentsMoves = this.moveGenerator
-        .generateAllOpponentsMoves(boardClone, selectedPiece.color);
+    allOpponentsMoves = this.moveGenerator.generateAllOpponentsMoves(
+      boardClone,
+      selectedPiece.color
+    );
 
-      for (const [attackerId, checkedColors] of move.check) {
-        if (!checkedColors.includes(selectedPiece.color)) continue;
+    for (const [attackerId, checkedColors] of activeChecks) {
+      if (!checkedColors.includes(selectedPiece.color)) continue;
 
-        moves = this.filterMovesAgainstChecker(
-          selectedPiece,
-          from,
-          attackerId,
-          board,
-          moves
-        );
-      }
+      moves = this.filterMovesAgainstChecker(
+        selectedPiece,
+        from,
+        attackerId,
+        board,
+        moves
+      );
     }
 
     return { moves, allOpponentsMoves };
@@ -165,14 +168,38 @@ export class ClassicRuleSet implements RuleSet {
     return moves.filter(move => !forbidden.includes(move.to));
   }
 
-  private getRecentCheckingMoves(game: Game): Move[] {
-    const history = game.getHistory();
+  private getActiveChecks(
+    board: Board,
+    players: Iterable<Color>
+  ): Map<string, Color[]> {
+    const enemyKings = new Map<Color, number>();
+    const checkInfos = new Map<string, Color[]>();
 
-    return [
-      history[history.length - 1],
-      history[history.length - 2],
-      history[history.length - 3]
-    ].filter((move): move is Move => move !== undefined && move.check !== undefined);
+    for (const color of PLAYER_COLORS) {
+      const kingPos = board.getPositionOf(`K-${color}`);
+      if (kingPos !== undefined) {
+        enemyKings.set(color, kingPos);
+      }
+    }
+
+    for (const player of players) {
+      for (const piece of board.getPiecesByColor(player)) {
+        const moves = new Set(
+          this.moveGenerator.generateMovesForPiece(piece, board)
+        );
+
+        for (const [kingColor, kingPos] of enemyKings) {
+          if (kingColor === player) continue;
+          if (!moves.has(kingPos)) continue;
+
+          const checkedColors = checkInfos.get(piece.id) ?? [];
+          checkedColors.push(kingColor);
+          checkInfos.set(piece.id, checkedColors);
+        }
+      }
+    }
+
+    return checkInfos;
   }
 
   private getPawnDoubleStep(pawn: Piece, from: number, board: Board): Move | undefined {
@@ -325,34 +352,7 @@ export class ClassicRuleSet implements RuleSet {
   }
 
   public getCheckInfos(player: Color, game: Game): Map<string, Color[]> {
-    const board = game.getBoard();
-    const enemyKings = new Map<Color, number>();
-    const checkInfos = new Map<string, Color[]>();
-
-    for (const color of PLAYER_COLORS) {
-      if (color === player) continue;
-
-      const kingPos = board.getPositionOf(`K-${color}`);
-      if (kingPos !== undefined) {
-        enemyKings.set(color, kingPos);
-      }
-    }
-
-    for (const piece of board.getPiecesByColor(player)) {
-      const moves = new Set(
-        this.moveGenerator.generateMovesForPiece(piece, board)
-      );
-
-      for (const [color, kingPos] of enemyKings) {
-        if (!moves.has(kingPos)) continue;
-
-        const checkedColors = checkInfos.get(piece.id) ?? [];
-        checkedColors.push(color);
-        checkInfos.set(piece.id, checkedColors);
-      }
-    }
-
-    return checkInfos;
+    return this.getActiveChecks(game.getBoard(), [player]);
   }
 
   private getAttackRayToKing(pieceId: string, kingColor: Color, board: Board): number[] {
@@ -396,27 +396,30 @@ export class ClassicRuleSet implements RuleSet {
     if (state.getStatus() !== GameStatus.RUNNING) return state;
 
     const history = game.getHistory();
-    const lastMove = history[history.length - 1];
-    const piecePlayed = game.getBoard().getPiece(lastMove.pieceId)!;
-    const playerState = state.getPlayerState(piecePlayed.color);
-
-    if (playerState === PlayerState.CHECK) {
-      state.setPlayerState(piecePlayed.color, PlayerState.NORMAL);
-    }
 
     const currentPlayerColor = game.getCurrentPlayerColor();
 
-    if (lastMove.check !== undefined) {
-      const kingColors: Color[] = [];
-      const checkInfos = lastMove.check;
-
-      for (const colors of checkInfos.values()) {
-        kingColors.push(...colors);
+    // Reset all active CHECK states before recomputing them.
+    for (const color of PLAYER_COLORS) {
+      if (state.getPlayerState(color) === PlayerState.CHECK) {
+        state.setPlayerState(color, PlayerState.NORMAL);
       }
+    }
 
-      for (const color of new Set(kingColors)) {
-        state.setPlayerState(color, PlayerState.CHECK);
-      }
+    // Recompute all active checks from the current board position.
+    const activeChecks = this.getActiveChecks(
+      game.getBoard(),
+      PLAYER_COLORS
+    );
+
+    const checkedColors: Color[] = [];
+
+    for (const colors of activeChecks.values()) {
+      checkedColors.push(...colors);
+    }
+
+    for (const color of new Set(checkedColors)) {
+      state.setPlayerState(color, PlayerState.CHECK);
     }
 
     if (
