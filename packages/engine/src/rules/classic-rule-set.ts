@@ -24,6 +24,10 @@ export class ClassicRuleSet implements RuleSet {
         let pseudoLegalMoves = this.moveGenerator.generateMovesForPiece(selectedPiece, board);
         const playerState = gameState.getPlayerState(selectedPiece.color)!;
 
+        if (playerState === PlayerState.CHECKMATE ||
+            PlayerState.STALEMATE)
+            return [];
+
         let doubleStepMove: Move | undefined = undefined;
         let enpassantMove: Move | undefined = undefined;
         let promotionMove: Move | undefined = undefined;
@@ -357,24 +361,25 @@ export class ClassicRuleSet implements RuleSet {
 
             const currentPlayerColor = game.getCurrentPlayerColor();
 
-            if(state.getPlayerState(currentPlayerColor) === PlayerState.NORMAL &&
-                this.isPlayerMate(currentPlayerColor, game)
-            ) {
-                state.setPlayerState(piecePlayed.color, PlayerState.STALEMATE);
-            }
-
             if(lastMove.check !== undefined) {
                 const kingColors: Color[] = [];
                 const checkInfos = lastMove.check;
                 for (const v of checkInfos.values())
                     kingColors.push(...v);
                 for (const color of new Set(kingColors)) {
-                    if(currentPlayerColor === color &&
-                        this.isPlayerMate(color, game))
-                        state.setPlayerState(color, PlayerState.CHECKMATE);
-                    else
-                        state.setPlayerState(color, PlayerState.CHECK);
+                    state.setPlayerState(color, PlayerState.CHECK);
                 }
+            }
+
+            if (state.getPlayerState(currentPlayerColor) === PlayerState.CHECK &&
+                this.isPlayerMate(currentPlayerColor, game)) {
+                state.setPlayerState(currentPlayerColor, PlayerState.CHECKMATE);
+            }
+
+            if(state.getPlayerState(currentPlayerColor) === PlayerState.NORMAL &&
+                this.isPlayerMate(currentPlayerColor, game)
+            ) {
+                state.setPlayerState(currentPlayerColor, PlayerState.STALEMATE);
             }
 
         }

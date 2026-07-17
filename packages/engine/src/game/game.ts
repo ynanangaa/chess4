@@ -62,11 +62,17 @@ export class Game {
   }
 
   public applyMove(move: Move): boolean {
+    let m: Move = move;
+    let capture = this.board.getPieceAt(move.to);
+    if (capture !== undefined)
+      m = {...move, capture: capture.id };
+
     const result = this.board.placePiece(move.pieceId, move.to);
     if (result) {
       const capturedPieceId = this.getCapturedPieceIdForEnPassant(move);
       if (capturedPieceId) {
         this.board.removePiece(capturedPieceId);
+        m = {...move, capture: capturedPieceId };
       }
       if (move.pawnSpecialMove === 'promotion')
         this.board.setPromotionPieceType(move.pieceId, PieceType.QUEEN);
@@ -82,14 +88,14 @@ export class Game {
       if (checkInfos.size > 0) {
         
         this.history.push({
-          ...move, 
+          ...m, 
           check: checkInfos,
         });
       } else {
-        this.history.push(move);
+        this.history.push(m);
       }
 
-      this.movedPieces.add(move.pieceId);
+      this.movedPieces.add(m.pieceId);
 
       this.updateGameState();
       return true;

@@ -1,7 +1,7 @@
 import { describe, expect, test } from '@jest/globals';
 
 import { 
-    ClassicRuleSet, Color, Game, GameStatus, 
+    ClassicRuleSet, Color, FourPlayerRuleSet, Game, GameStatus, 
     MoveGenerator, PieceType, PlayerState, 
     buildDuplicatePiece, buildKing, buildPawn, 
     buildQueen, 
@@ -120,6 +120,7 @@ describe('Game State Update', () => {
 
 test('detects checkmate', () => {
   const redKing = buildKing(Color.RED);
+  const redBishop = buildDuplicatePiece(Color.RED, PieceType.BISHOP, true);
 
   const blueKing = buildKing(Color.BLUE);
   const yellowKing = buildKing(Color.YELLOW);
@@ -132,6 +133,7 @@ test('detects checkmate', () => {
     new ClassicRuleSet(new MoveGenerator()),
     [[
       redKing,
+      redBishop,
       blueKing,
       yellowKing,
       greenKing,
@@ -139,6 +141,7 @@ test('detects checkmate', () => {
       greenRook
     ], [
       parseSquareId(1, 7),   // red king
+      parseSquareId(14, 11),
 
       parseSquareId(10, 1),
       parseSquareId(14, 8),
@@ -158,12 +161,15 @@ test('detects checkmate', () => {
 
   expect(customGame.applyMove(queenMove!)).toBe(true);
 
-  /*expect(customGame.getGameState().getPlayerState(Color.RED))
-    .toBe(PlayerState.CHECKMATE);*/
+  expect(customGame.getGameState().getPlayerState(Color.RED))
+    .toBe(PlayerState.CHECKMATE);
+
+  // The red bishop can't prevent checkmate
+  expect(customGame.getLegalMoves(redBishop.id)).toEqual([]);
 
   // The mated king has no legal move
   expect(customGame.getLegalMoves(redKing.id)).toEqual([]);
-});
+  });
 
 test('detects stalemate', () => {
   const redKing = buildKing(Color.RED);
@@ -202,10 +208,11 @@ test('detects stalemate', () => {
 
   expect(customGame.applyMove(queenMove!)).toBe(true);
 
-  /*expect(customGame.getGameState().getPlayerState(Color.RED))
-    .toBe(PlayerState.STALEMATE);*/
-
   // The stalemated king has no legal move
   expect(customGame.getLegalMoves(redKing.id)).toEqual([]);
-});
+
+  expect(customGame.getGameState().getPlayerState(Color.RED))
+    .toBe(PlayerState.STALEMATE);
+
+  });
 })
