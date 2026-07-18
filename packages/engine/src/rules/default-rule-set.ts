@@ -186,8 +186,10 @@ export class DefaultRuleSet extends RuleSet {
       moves.push(...this.getCastleMoves(selectedPiece.color, game));
     }
 
+    const boardClone = board.clone();
+
     moves = moves.filter(move =>
-      this.isMoveLegal(move, selectedPiece.color, game)
+      this.isMoveLegal(move, selectedPiece.color, boardClone)
     );
 
     return moves;
@@ -196,9 +198,8 @@ export class DefaultRuleSet extends RuleSet {
   private isMoveLegal(
       move: Move,
       color: Color,
-      game: Game
+      board: Board
   ): boolean {
-      const board = game.getBoard().clone();
 
       this.applyMoveOnBoard(move, board);
 
