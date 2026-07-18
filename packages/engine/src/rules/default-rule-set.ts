@@ -119,43 +119,147 @@ export class DefaultRuleSet extends RuleSet {
     );
   }
 
-  public awardCapturePoints (_game: Game): number {
+  public awardCapturePoints (_game: Game): void {
 
     const history = _game.getHistory();
     const lastMove = history[history.length - 1];
     const capturedPieceId = lastMove.capture;
 
-    if (capturedPieceId === undefined) return 0;
+    if (capturedPieceId === undefined) return;
 
     const board = _game.getBoard();
     const capturedPiece = board.getPiece(capturedPieceId)!;
+    const piecePlayed = _game.getBoard().getPiece(lastMove.pieceId)!;
+    const rewardedPoints = capturedPiece.points? capturedPiece.points: 0;
 
-    return capturedPiece.points? capturedPiece.points: 0;
+    this.awardPoints(piecePlayed.color, rewardedPoints, _game); 
 
   }
 
-  public awardMultiCheckPoints(_game: Game): number {
+  public awardMultiCheckPoints(_game: Game): void {
     const history = _game.getHistory();
     const lastMove = history[history.length - 1];
 
     const checkInfos = lastMove.check;
 
-    if (checkInfos === undefined) return 0;
+    if (checkInfos === undefined) return;
 
     const checkedKings: Set<Color> = new Set(
       Array.from(checkInfos.values()).flat()
     )
 
-    if (checkedKings.size < 2) return 0;
+    if (checkedKings.size < 2) return;
 
     const movedPiece = _game.getBoard().getPiece(lastMove.pieceId)!;
 
     switch(movedPiece.type) {
       case PieceType.QUEEN:
-        return checkedKings.size === 2? 1: 5;
+        this.awardPoints(
+          movedPiece.color,
+          checkedKings.size === 2? 1: 5,
+          _game
+        );
+        return;
       default:
-        return checkedKings.size === 2? 5: 20;
+        this.awardPoints(
+          movedPiece.color,
+          checkedKings.size === 2? 5: 20,
+          _game
+        );
+        return;
     }
+  }
+
+  public awardMatePoints(game: Game): void {
+      for (const color of PLAYER_COLORS) {
+          switch (game.getGameState().getPlayerState(color)) {
+              case PlayerState.CHECKMATE:
+                  this.awardCheckmatePoints(color, game);
+                  break;
+
+              case PlayerState.STALEMATE:
+                  this.awardStalematePoints(color, game);
+                  break;
+          }
+      }
+  }
+
+  private awardCheckmatePoints(
+      checkedColor: Color,
+      game: Game
+  ): void {
+      const checks = this.getActiveChecks(
+          game.getBoard(),
+          PLAYER_COLORS
+      );
+
+      const attackers = this.getCheckingPlayers(
+          checks,
+          checkedColor,
+          game.getBoard()
+      );
+
+      if (attackers.length === 0) {
+          return;
+      }
+
+      let current = game.getNextPlayerColor(checkedColor)!;
+
+      while (current !== checkedColor) {
+          if (attackers.includes(current)) {
+              this.awardPoints(current, 20, game);
+              return;
+          }
+
+          current = game.getNextPlayerColor(current)!;
+      }
+  }
+
+  private awardStalematePoints(
+      stalledColor: Color,
+      game: Game
+  ): void {
+      this.awardPoints(stalledColor, 20, game);
+
+      for (const color of PLAYER_COLORS) {
+          if (color === stalledColor) {
+              continue;
+          }
+
+          if (game.getPlayer(color).getStatus() === 'active') {
+              this.awardPoints(color, 10, game);
+          }
+      }
+  }
+
+  private getCheckingPlayers(
+      checks: Map<string, Color[]>,
+      checkedColor: Color,
+      board: Board
+  ): Color[] {
+      const attackers: Color[] = [];
+
+      for (const [pieceId, checkedColors] of checks) {
+          if (!checkedColors.includes(checkedColor)) {
+              continue;
+          }
+
+          const attacker = board.getPiece(pieceId)!.color;
+
+          if (!attackers.includes(attacker)) {
+              attackers.push(attacker);
+          }
+      }
+
+      return attackers;
+  }
+
+  private awardPoints(
+      color: Color,
+      points: number,
+      game: Game
+  ): void {
+      game.getPlayer(color).incrementScore(points);
   }
 
   public getLegalMoves(pieceId: string, game: Game): Move[] {
@@ -201,14 +305,14 @@ export class DefaultRuleSet extends RuleSet {
       board: Board
   ): boolean {
 
-      this.applyMoveOnBoard(move, board);
+    this.applyMoveOnBoard(move, board);
 
-      const checks = this.getActiveChecks(
-          board,
-          PLAYER_COLORS
-      );
+    const checks = this.getActiveChecks(
+        board,
+        PLAYER_COLORS
+    );
 
-      return ![...checks.values()].some(colors => colors.includes(color));
+    return ![...checks.values()].some(colors => colors.includes(color));
   }
 
   private withPawnSpecialMoves(
@@ -449,6 +553,7 @@ export class DefaultRuleSet extends RuleSet {
       this.isPlayerMate(currentPlayerColor, game)
     ) {
       state.setPlayerState(currentPlayerColor, PlayerState.CHECKMATE);
+      game.getPlayer(currentPlayerColor).setStatus('inactive');
     }
 
     if (
@@ -456,6 +561,7 @@ export class DefaultRuleSet extends RuleSet {
       this.isPlayerMate(currentPlayerColor, game)
     ) {
       state.setPlayerState(currentPlayerColor, PlayerState.STALEMATE);
+      game.getPlayer(currentPlayerColor).setStatus('inactive');
     }
 
     return state;

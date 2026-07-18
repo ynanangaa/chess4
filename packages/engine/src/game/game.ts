@@ -70,7 +70,7 @@ export class Game {
     const lastMove = this.history[this.history.length - 1];
     const previousColor = this.board.getPiece(lastMove.pieceId)!.color;
 
-    return NEXT_PLAYER_COLOR.get(previousColor)!;
+    return this.getNextPlayerColor(previousColor);
   }
 
   public getPlayer(color: Color): Player {
@@ -89,5 +89,14 @@ export class Game {
 
   public hasPieceMoved(pieceId: string): boolean {
     return this.movedPieces.has(pieceId);
+  }
+
+  public isPlayerActive(color: Color): boolean {
+    const player = this.getPlayer(color);
+    return player?.getStatus() === 'active'? true: false;
+  }
+
+  public getNextPlayerColor(previous: Color): Color {
+    return NEXT_PLAYER_COLOR.get(previous)!;
   }
 }
