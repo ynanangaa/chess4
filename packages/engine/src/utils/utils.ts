@@ -112,7 +112,8 @@ export function buildPawn(color: Color, pawnNum: number): Piece {
   return {
     id: createPieceId(color, PieceType.PAWN, pawnNum),
     color,
-    type: PieceType.PAWN
+    type: PieceType.PAWN,
+    points: 1
   };
 }
 
@@ -134,10 +135,12 @@ export function buildDuplicatePiece(
   type: PieceType,
   kingSide: boolean
 ): Piece {
+  const points = type === PieceType.KNIGHT? 3: 5;
   return {
     id: createDuplicatePieceId(color, type, kingSide),
     color,
-    type
+    type,
+    points: points
   };
 }
 
@@ -210,7 +213,8 @@ export function buildQueen(color: Color): Piece {
   return {
     id: createPieceId(color, PieceType.QUEEN),
     color,
-    type: PieceType.QUEEN
+    type: PieceType.QUEEN,
+    points: 9
   };
 }
 

@@ -1,6 +1,13 @@
 import { Board } from "../board";
 import { Game, GameState } from "../game";
-import { castleDirectionOffset, forwardDirection, Move, MoveGenerator } from "../moves";
+import { 
+  castleDirectionOffset, 
+  enPassantCapturedPawnSquare, 
+  forwardDirection, 
+  Move, 
+  MoveGenerator, 
+  rookCastleDirectionOffset 
+} from "../moves";
 import { Color, GameStatus, Piece, PieceType, PlayerState } from "../types";
 import { kingInitialSquareId, rookInitialSquareId } from "../utils";
 import { EN_PASSANT_SQUARES_IDS } from "./en-passant-squares-ids";
@@ -8,10 +15,103 @@ import { RuleSet } from "./rule-set";
 
 const PLAYER_COLORS = [Color.RED, Color.BLUE, Color.YELLOW, Color.GREEN];
 
-export class ClassicRuleSet implements RuleSet {
+export class DefaultRuleSet extends RuleSet {
   constructor(
-    private readonly moveGenerator: MoveGenerator
-  ) {}
+    moveGenerator: MoveGenerator
+  ) { super(moveGenerator); }
+
+  public override applyMove(move: Move, game: Game): boolean {
+    let appliedMove = this.withDirectCapture(move, game.getBoard());
+    const movedPiece = game.getBoard().placePiece(move.pieceId, move.to);
+    if (!movedPiece) return false;
+
+    appliedMove = this.applyEnPassantCapture(appliedMove, game.getBoard());
+    this.applyPromotion(move, game.getBoard());
+    this.applyCastling(move, game);
+    this.recordMove(appliedMove, movedPiece.color, game);
+
+    game.addMovedPiece(appliedMove.pieceId);
+    this.updateGameState(game);
+
+    return true;
+  }
+
+  private withDirectCapture(move: Move, board: Board): Move {
+    const capturedPiece = board.getPieceAt(move.to);
+
+    if (!capturedPiece) return move;
+
+    return { ...move, capture: capturedPiece.id };
+  }
+
+  private applyEnPassantCapture(move: Move, board: Board): Move {
+    const capturedPieceId = this.getCapturedPieceIdForEnPassant(move, board);
+    if (!capturedPieceId) return move;
+
+    board.removePiece(capturedPieceId);
+
+    return { ...move, capture: capturedPieceId };
+  }
+
+  private getCapturedPieceIdForEnPassant(
+    move: Move,
+    board: Board
+  ): string | undefined {
+    if (move.pawnSpecialMove !== "e-p") return undefined;
+
+    const movingPiece = board.getPiece(move.pieceId);
+    if (!movingPiece || movingPiece.type !== PieceType.PAWN) return undefined;
+
+    const capturedSquare = enPassantCapturedPawnSquare(move.to, movingPiece.color);
+    const capturedPiece = board.getPieceAt(capturedSquare);
+    if (!capturedPiece || capturedPiece.color === movingPiece.color) return undefined;
+
+    return capturedPiece.id;
+  }
+
+  private applyPromotion(move: Move, board: Board): void {
+    if (move.pawnSpecialMove === "promotion") {
+      board.setPromotionPieceType(move.pieceId, PieceType.QUEEN);
+    }
+  }
+
+  private applyCastling(move: Move, game: Game): void {
+    if (!move.castle) return;
+
+    const color = game.getBoard().getPiece(move.pieceId)!.color;
+    const rookId = `R-${color}-${move.castle}`;
+
+    game.getBoard().placePiece(
+      rookId,
+      move.to + rookCastleDirectionOffset(color, move.castle)
+    );
+    game.addMovedPiece(rookId);
+  }
+
+  private recordMove(move: Move, color: Color, game: Game): void {
+    const checkInfos = this.getCheckInfos(color, game);
+
+    game.addMoveToHistory(
+      checkInfos.size > 0
+        ? { ...move, check: checkInfos }
+        : move
+    );
+  }
+
+  public awardCapturePoints (_game: Game): number {
+
+    const history = _game.getHistory();
+    const lastMove = history[history.length - 1];
+    const capturedPieceId = lastMove.capture;
+
+    if (capturedPieceId === undefined) return 0;
+
+    const board = _game.getBoard();
+    const capturedPiece = board.getPiece(capturedPieceId)!;
+
+    return capturedPiece.points? capturedPiece.points: 0;
+
+  }
 
   public getLegalMoves(pieceId: string, game: Game): Move[] {
     const board = game.getBoard();

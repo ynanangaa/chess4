@@ -1,8 +1,8 @@
 import { Game } from "../game";
 import { MoveGenerator } from "../moves";
-import { ClassicRuleSet } from "./classic-rule-set";
+import { DefaultRuleSet } from "./default-rule-set";
 
-export class FourPlayerRuleSet extends ClassicRuleSet {
+export class TeamRuleSet extends DefaultRuleSet {
   constructor(moveGenerator: MoveGenerator) {
     super(moveGenerator);
   }

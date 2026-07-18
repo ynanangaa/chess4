@@ -1,5 +1,5 @@
 import {
-  ClassicRuleSet,
+  DefaultRuleSet,
   Game,
   Move,
   MoveGenerator,
@@ -10,7 +10,7 @@ import {
 type InitialPosition = [Piece[], number[]];
 
 export function createClassicGame(initialPosition: InitialPosition): Game {
-  return new Game(new ClassicRuleSet(new MoveGenerator()), initialPosition);
+  return new Game(new DefaultRuleSet(new MoveGenerator()), initialPosition);
 }
 
 export function findMoveTo(game: Game, pieceId: string, to: number): Move | undefined {
