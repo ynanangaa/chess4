@@ -5,8 +5,8 @@ import {
   enPassantCapturedPawnSquare, 
   forwardDirection, 
   Move, 
-  MoveGenerator, 
-  rookCastleDirectionOffset 
+  MoveGenerator,
+  rookCastleDirectionOffset, 
 } from "../moves";
 import { Color, GameStatus, Piece, PieceType, PlayerState } from "../types";
 import { kingInitialSquareId, rookInitialSquareId } from "../utils";
@@ -21,19 +21,41 @@ export class DefaultRuleSet extends RuleSet {
   ) { super(moveGenerator); }
 
   public override applyMove(move: Move, game: Game): boolean {
-    let appliedMove = this.withDirectCapture(move, game.getBoard());
-    const movedPiece = game.getBoard().placePiece(move.pieceId, move.to);
-    if (!movedPiece) return false;
+    // Three stages
 
-    appliedMove = this.applyEnPassantCapture(appliedMove, game.getBoard());
-    this.applyPromotion(move, game.getBoard());
-    this.applyCastling(move, game);
-    this.recordMove(appliedMove, movedPiece.color, game);
+    // Stage 1 : Board (moves, captures, castle, promotion)
+    const appliedMove = this.applyMoveOnBoard(move, game.getBoard());
+    if (!appliedMove) return false;
+
+    // Stage 2 : Game (history, moved pieces, check infos)
+    const movedPiece = game.getBoard().getPiece(appliedMove.pieceId)!;
 
     game.addMovedPiece(appliedMove.pieceId);
+    if (move.castle) {
+        const color = movedPiece.color;
+        game.addMovedPiece(`R-${color}-${move.castle}`);
+    }
+    this.recordMove(appliedMove, movedPiece.color, game);
+
+    // Stage 3 : Rules (Game state update, points awarded)
     this.updateGameState(game);
 
     return true;
+  }
+
+  private applyMoveOnBoard(
+    move: Move, 
+    board: Board
+  ): Move | undefined {
+    let appliedMove = this.withDirectCapture(move, board);
+    const movedPiece = board.placePiece(move.pieceId, move.to);
+    if (!movedPiece) return undefined;
+
+    appliedMove = this.applyEnPassantCapture(appliedMove, board);
+    this.applyPromotion(move, board);
+    this.applyCastling(move, board);
+
+    return appliedMove;
   }
 
   private withDirectCapture(move: Move, board: Board): Move {
@@ -75,17 +97,16 @@ export class DefaultRuleSet extends RuleSet {
     }
   }
 
-  private applyCastling(move: Move, game: Game): void {
+  private applyCastling(move: Move, board: Board): void {
     if (!move.castle) return;
 
-    const color = game.getBoard().getPiece(move.pieceId)!.color;
+    const color = board.getPiece(move.pieceId)!.color;
     const rookId = `R-${color}-${move.castle}`;
 
-    game.getBoard().placePiece(
+    board.placePiece(
       rookId,
       move.to + rookCastleDirectionOffset(color, move.castle)
     );
-    game.addMovedPiece(rookId);
   }
 
   private recordMove(move: Move, color: Color, game: Game): void {
@@ -111,6 +132,30 @@ export class DefaultRuleSet extends RuleSet {
 
     return capturedPiece.points? capturedPiece.points: 0;
 
+  }
+
+  public awardMultiCheckPoints(_game: Game): number {
+    const history = _game.getHistory();
+    const lastMove = history[history.length - 1];
+
+    const checkInfos = lastMove.check;
+
+    if (checkInfos === undefined) return 0;
+
+    const checkedKings: Set<Color> = new Set(
+      Array.from(checkInfos.values()).flat()
+    )
+
+    if (checkedKings.size < 2) return 0;
+
+    const movedPiece = _game.getBoard().getPiece(lastMove.pieceId)!;
+
+    switch(movedPiece.type) {
+      case PieceType.QUEEN:
+        return checkedKings.size === 2? 1: 5;
+      default:
+        return checkedKings.size === 2? 5: 20;
+    }
   }
 
   public getLegalMoves(pieceId: string, game: Game): Move[] {
@@ -141,33 +186,28 @@ export class DefaultRuleSet extends RuleSet {
       moves.push(...this.getCastleMoves(selectedPiece.color, game));
     }
 
-    let allOpponentsMoves: Set<number> = new Set();
-
-    if (
-      selectedPiece.type === PieceType.KING &&
-      playerState !== PlayerState.CHECK
-    ) {
-      allOpponentsMoves = this.moveGenerator
-        .generateAllOpponentsMoves(board, selectedPiece.color);
-    }
-
-    if (playerState === PlayerState.CHECK) {
-      const checkedMoves = this.filterMovesWhileInCheck(
-        selectedPiece,
-        from,
-        game,
-        moves
-      );
-
-      moves = checkedMoves.moves;
-      allOpponentsMoves = checkedMoves.allOpponentsMoves;
-    }
-
-    if (selectedPiece.type === PieceType.KING) {
-      moves = moves.filter(move => !allOpponentsMoves.has(move.to));
-    }
+    moves = moves.filter(move =>
+      this.isMoveLegal(move, selectedPiece.color, game)
+    );
 
     return moves;
+  }
+
+  private isMoveLegal(
+      move: Move,
+      color: Color,
+      game: Game
+  ): boolean {
+      const board = game.getBoard().clone();
+
+      this.applyMoveOnBoard(move, board);
+
+      const checks = this.getActiveChecks(
+          board,
+          PLAYER_COLORS
+      );
+
+      return ![...checks.values()].some(colors => colors.includes(color));
   }
 
   private withPawnSpecialMoves(
@@ -189,83 +229,6 @@ export class DefaultRuleSet extends RuleSet {
     if (enPassantMove) moves.push(enPassantMove);
 
     return moves;
-  }
-
-  private filterMovesWhileInCheck(
-    selectedPiece: Piece,
-    from: number,
-    game: Game,
-    moves: Move[]
-  ): { moves: Move[]; allOpponentsMoves: Set<number> } {
-    const board = game.getBoard();
-    const boardClone = board.clone();
-    let allOpponentsMoves: Set<number> = new Set();
-
-    const activeChecks = this.getActiveChecks(
-      board,
-      PLAYER_COLORS
-    );
-
-    for (const attackerId of activeChecks.keys()) {
-      boardClone.removePiece(attackerId);
-    }
-
-    allOpponentsMoves = this.moveGenerator.generateAllOpponentsMoves(
-      boardClone,
-      selectedPiece.color
-    );
-
-    for (const [attackerId, checkedColors] of activeChecks) {
-      if (!checkedColors.includes(selectedPiece.color)) continue;
-
-      moves = this.filterMovesAgainstChecker(
-        selectedPiece,
-        from,
-        attackerId,
-        board,
-        moves
-      );
-    }
-
-    return { moves, allOpponentsMoves };
-  }
-
-  private filterMovesAgainstChecker(
-    selectedPiece: Piece,
-    from: number,
-    attackerId: string,
-    board: Board,
-    moves: Move[]
-  ): Move[] {
-    const attackerPos = board.getPositionOf(attackerId)!;
-    const attackRayToKing = this.getAttackRayToKing(
-      attackerId,
-      selectedPiece.color,
-      board
-    );
-
-    if (selectedPiece.type !== PieceType.KING) {
-      if (attackRayToKing.length === 0) {
-        // Knight checks cannot be blocked; only capturing the attacker helps.
-        return moves.filter(move => move.to === attackerPos);
-      }
-
-      // Sliding attacks can be answered by capture or interposition.
-      return moves.filter(move => attackRayToKing.includes(move.to));
-    }
-
-    const attacker = board.getPiece(attackerId)!;
-    const attackerMoves = new Set(
-      this.moveGenerator.generateMovesForPiece(attacker, board)
-    );
-
-    moves = moves.filter(move => !attackerMoves.has(move.to));
-
-    const forbidden = attackRayToKing.length > 0
-      ? [attackRayToKing[attackRayToKing.length - 1]]
-      : [from - 15, from - 13, from + 13, from + 15];
-
-    return moves.filter(move => !forbidden.includes(move.to));
   }
 
   private getActiveChecks(
@@ -455,42 +418,6 @@ export class DefaultRuleSet extends RuleSet {
     return this.getActiveChecks(game.getBoard(), [player]);
   }
 
-  private getAttackRayToKing(pieceId: string, kingColor: Color, board: Board): number[] {
-    const kingPos = board.getPositionOf(`K-${kingColor}`);
-    const attackerPos = board.getPositionOf(pieceId);
-
-    if (kingPos === undefined || attackerPos === undefined) {
-      return [];
-    }
-
-    const delta = kingPos - attackerPos;
-    const absDelta = Math.abs(delta);
-
-    let step = 0;
-
-    if (absDelta < 13) step = 1;
-    else if (absDelta % 14 === 0) step = 14;
-    else if (absDelta % 15 === 0) step = 15;
-    else if (absDelta % 13 === 0) step = 13;
-    else return [];
-
-    const direction = delta > 0 ? 1 : -1;
-    const result: number[] = [];
-
-    for (
-      let pos = attackerPos;
-      pos !== kingPos;
-      pos += direction * step
-    ) {
-      result.push(pos);
-    }
-
-    // Also forbid the square just beyond the king on the same attack line.
-    result.push(kingPos + direction * step);
-
-    return result;
-  }
-
   public updateGameState(game: Game): GameState {
     const state = game.getGameState();
     if (state.getStatus() !== GameStatus.RUNNING) return state;
@@ -510,11 +437,7 @@ export class DefaultRuleSet extends RuleSet {
       PLAYER_COLORS
     );
 
-    const checkedColors: Color[] = [];
-
-    for (const colors of activeChecks.values()) {
-      checkedColors.push(...colors);
-    }
+    const checkedColors: Color[] = Array.from(activeChecks.values()).flat();
 
     for (const color of new Set(checkedColors)) {
       state.setPlayerState(color, PlayerState.CHECK);

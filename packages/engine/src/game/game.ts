@@ -90,8 +90,4 @@ export class Game {
   public hasPieceMoved(pieceId: string): boolean {
     return this.movedPieces.has(pieceId);
   }
-
-  private updateGameState(): void {
-    this.gameState = this.ruleSet.updateGameState(this);
-  }
 }
