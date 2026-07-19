@@ -353,10 +353,8 @@ export class DefaultRuleSet extends RuleSet {
       moves.push(...this.getCastleMoves(selectedPiece.color, game));
     }
 
-    const boardClone = board.clone();
-
     moves = moves.filter(move =>
-      this.isMoveLegal(move, selectedPiece.color, boardClone)
+      this.isMoveLegal(move, selectedPiece.color, board)
     );
 
     return moves;
@@ -367,11 +365,17 @@ export class DefaultRuleSet extends RuleSet {
       color: Color,
       board: Board
   ): boolean {
+    // Each candidate move must be tried on its own fresh clone of the
+    // original position. Reusing a single mutated clone across multiple
+    // candidate moves (as this used to do) leaks the side effects of one
+    // candidate (captures, piece removals, etc.) into the legality check
+    // of the next candidate, producing false positives/negatives.
+    const boardClone = board.clone();
 
-    this.applyMoveOnBoard(move, board);
+    this.applyMoveOnBoard(move, boardClone);
 
     const checks = this.getActiveChecks(
-        board,
+        boardClone,
         PLAYER_COLORS
     );
 
