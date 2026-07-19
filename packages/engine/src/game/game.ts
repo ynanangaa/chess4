@@ -133,7 +133,7 @@ export class Game {
     return next;
   }
 
-  public rankPlayersScores(): Player[] {
+  public rankPlayersByScore(): Player[] {
     return this.players.sort((a, b) => 
       b.getScore() - a.getScore());
   }
