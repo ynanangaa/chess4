@@ -26,8 +26,8 @@ export function rookCastleDirectionOffset(color: Color, castleSide: CastleSide):
   }
 
   if (
-    (color === Color.BLUE && castleSide === "kingside") ||
-    (color === Color.GREEN && castleSide === "queenside")
+    (color === Color.BLUE && castleSide === "queenside") ||
+    (color === Color.GREEN && castleSide === "kingside")
   ) {
     return -1;
   }

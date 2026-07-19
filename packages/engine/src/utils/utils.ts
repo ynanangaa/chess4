@@ -153,9 +153,14 @@ export function bishopInitialSquareId(color: Color, kingSide: boolean): number {
     case Color.YELLOW:
       return parseSquareId(14, kingSide ? 6 : 9);
     case Color.BLUE:
-      return parseSquareId(kingSide ? 9 : 6, 1);
+      // BLUE's own left/right axis runs along decreasing row (see
+      // kingInitialSquareId/queenInitialSquareId below), so the flank
+      // adjacent to the king (kingside) is on the LOWER row side.
+      return parseSquareId(kingSide ? 6 : 9, 1);
     case Color.GREEN:
-      return parseSquareId(kingSide ? 6 : 9, 14);
+      // GREEN's own left/right axis runs along increasing row, so the
+      // flank adjacent to the king (kingside) is on the HIGHER row side.
+      return parseSquareId(kingSide ? 9 : 6, 14);
   }
 }
 
@@ -166,9 +171,9 @@ export function knightInitialSquareId(color: Color, kingSide: boolean): number {
     case Color.YELLOW:
       return parseSquareId(14, kingSide ? 5 : 10);
     case Color.BLUE:
-      return parseSquareId(kingSide ? 10 : 5, 1);
+      return parseSquareId(kingSide ? 5 : 10, 1);
     case Color.GREEN:
-      return parseSquareId(kingSide ? 5 : 10, 14);
+      return parseSquareId(kingSide ? 10 : 5, 14);
   }
 }
 
@@ -179,9 +184,9 @@ export function rookInitialSquareId(color: Color, kingSide: boolean): number {
     case Color.YELLOW:
       return parseSquareId(14, kingSide ? 4 : 11);
     case Color.BLUE:
-      return parseSquareId(kingSide ? 11 : 4, 1);
+      return parseSquareId(kingSide ? 4 : 11, 1);
     case Color.GREEN:
-      return parseSquareId(kingSide ? 4 : 11, 14);
+      return parseSquareId(kingSide ? 11 : 4, 14);
   }
 }
 
@@ -192,9 +197,13 @@ export function queenInitialSquareId(color: Color): number {
     case Color.YELLOW:
       return parseSquareId(14, 8);
     case Color.BLUE:
-      return parseSquareId(7, 1);
+      // From BLUE's own point of view (facing right, toward increasing
+      // column), "left of the king" is the higher-row side.
+      return parseSquareId(8, 1);
     case Color.GREEN:
-      return parseSquareId(8, 14);
+      // From GREEN's own point of view (facing left, toward decreasing
+      // column), "left of the king" is the lower-row side.
+      return parseSquareId(7, 14);
   }
 }
 
@@ -205,9 +214,9 @@ export function kingInitialSquareId(color: Color): number {
     case Color.YELLOW:
       return parseSquareId(14, 7);
     case Color.BLUE:
-      return parseSquareId(8, 1);
+      return parseSquareId(7, 1);
     case Color.GREEN:
-      return parseSquareId(7, 14);
+      return parseSquareId(8, 14);
   }
 }
 

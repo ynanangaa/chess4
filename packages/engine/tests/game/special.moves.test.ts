@@ -65,10 +65,10 @@ describe('Game special moves', () => {
     color => {
       const king = buildKing(color);
       const rook = buildDuplicatePiece(color, PieceType.ROOK, true);
-      const kingStart = color === Color.RED ? parseSquareId(1, 8) : parseSquareId(8, 1);
-      const rookStart = color === Color.RED ? parseSquareId(1, 11) : parseSquareId(11, 1);
-      const castleTarget = color === Color.RED ? parseSquareId(1, 10) : parseSquareId(10, 1);
-      const rookTarget = color === Color.RED ? parseSquareId(1, 9) : parseSquareId(9, 1);
+      const kingStart = color === Color.RED ? parseSquareId(1, 8) : parseSquareId(7, 1);
+      const rookStart = color === Color.RED ? parseSquareId(1, 11) : parseSquareId(4, 1);
+      const castleTarget = color === Color.RED ? parseSquareId(1, 10) : parseSquareId(5, 1);
+      const rookTarget = color === Color.RED ? parseSquareId(1, 9) : parseSquareId(6, 1);
 
       const game = createClassicGame([[king, rook], [kingStart, rookStart]]);
 

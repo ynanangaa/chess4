@@ -1,5 +1,5 @@
 import { Board } from "../board";
-import { Game, GameState } from "../game";
+import { Game } from "../game";
 import { 
   castleDirectionOffset, 
   enPassantCapturedPawnSquare, 

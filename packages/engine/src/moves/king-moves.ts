@@ -20,9 +20,9 @@ export function castleDirectionOffset(color: Color, kingSide: boolean): number {
     case Color.YELLOW:
       return kingSide ? -14 : 14;
     case Color.BLUE:
-      return kingSide ? 1 : -1;
-    case Color.GREEN:
       return kingSide ? -1 : 1;
+    case Color.GREEN:
+      return kingSide ? 1 : -1;
   }
 }
 
