@@ -2,7 +2,7 @@ import { Board } from "../board";
 import { Move } from "../moves";
 import { Player } from "../players";
 import { RuleSet } from "../rules";
-import { Color, GameStatus, Piece, PlayerState } from "../types";
+import { CapturedPiece, Color, GameStatus, Piece, PlayerState } from "../types";
 import { GameState } from "./game-state";
 
 const NEXT_PLAYER_COLOR = new Map<Color, Color>([
@@ -14,10 +14,11 @@ const NEXT_PLAYER_COLOR = new Map<Color, Color>([
 
 export class Game {
   private board: Board;
+  private gameState: GameState;
   private history: Move[];
   private movedPieces = new Set<string>();
   private players: Player[];
-  private gameState: GameState;
+  private capturedPieces = new Map<string, CapturedPiece>();
 
   constructor(
     private ruleSet: RuleSet,
@@ -48,12 +49,20 @@ export class Game {
     this.movedPieces.add(id);
   }
 
+  public addCapturedPiece(id: string, captured: CapturedPiece): void {
+    this.capturedPieces.set(id, captured);
+  }
+
   public applyMove(move: Move): boolean {
     return this.ruleSet.applyMove(move, this);
   }
 
   public getBoard(): Board {
     return this.board;
+  }
+
+  public getCapturedPiece(id: string): CapturedPiece | undefined {
+    return this.capturedPieces.get(id);
   }
 
   public getHistory(): Move[] {
@@ -122,6 +131,11 @@ export class Game {
     while(!this.isPlayerActive(next))
       next = NEXT_PLAYER_COLOR.get(next)!;
     return next;
+  }
+
+  public rankPlayersScores(): Player[] {
+    return this.players.sort((a, b) => 
+      b.getScore() - a.getScore());
   }
 
   public setGameStatus(status: GameStatus): void {

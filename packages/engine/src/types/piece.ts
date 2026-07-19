@@ -8,3 +8,7 @@ export interface Piece {
   type: PieceType;
   points?: 1 | 3 | 5 | 9;
 }
+
+export interface CapturedPiece extends Piece {
+  capturedBy: Color;
+}

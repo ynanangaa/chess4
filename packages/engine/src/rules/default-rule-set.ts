@@ -8,7 +8,7 @@ import {
   MoveGenerator,
   rookCastleDirectionOffset, 
 } from "../moves";
-import { Color, GameStatus, Piece, PieceType, PlayerState } from "../types";
+import { CapturedPiece, Color, GameStatus, Piece, PieceType, PlayerState } from "../types";
 import { kingInitialSquareId, rookInitialSquareId } from "../utils";
 import { EN_PASSANT_SQUARES_IDS } from "./en-passant-squares-ids";
 import { RuleSet } from "./rule-set";
@@ -24,10 +24,15 @@ export class DefaultRuleSet extends RuleSet {
     // Three stages
 
     // Stage 1 : Board (moves, captures, castle, promotion)
-    const appliedMove = this.applyMoveOnBoard(move, game.getBoard());
+    const [appliedMove, capturedPiece]: 
+      [Move | undefined, CapturedPiece | undefined]
+        = this.applyMoveOnBoard(move, game.getBoard());
     if (!appliedMove) return false;
 
-    // Stage 2 : Game (history, moved pieces, check infos)
+    // Stage 2 : Game (history, moved and captured pieces, check infos)
+    if (capturedPiece) {
+      game.addCapturedPiece(capturedPiece.id, capturedPiece)
+    }
     const movedPiece = game.getBoard().getPiece(appliedMove.pieceId)!;
 
     game.addMovedPiece(appliedMove.pieceId);
@@ -37,8 +42,15 @@ export class DefaultRuleSet extends RuleSet {
     }
     this.recordMove(appliedMove, movedPiece.color, game);
 
-    // Stage 3 : Rules (Game state update, points awarded)
+    // Stage 3 : Rules (Game state update, points awarded, pieces statuses)
     this.updateGameState(game);
+    this.awardPoints(game);
+
+    for (const color of PLAYER_COLORS) {
+      this.updatePlayerPiecesStatus(color, game);
+    }
+
+    this.endGame(game);
 
     return true;
   }
@@ -46,16 +58,42 @@ export class DefaultRuleSet extends RuleSet {
   private applyMoveOnBoard(
     move: Move, 
     board: Board
-  ): Move | undefined {
+  ): [Move | undefined, CapturedPiece | undefined] {
     let appliedMove = this.withDirectCapture(move, board);
-    const movedPiece = board.placePiece(move.pieceId, move.to);
-    if (!movedPiece) return undefined;
 
-    appliedMove = this.applyEnPassantCapture(appliedMove, board);
-    this.applyPromotion(move, board);
+    let directCapturedId = appliedMove.capture;
+    let enPassantCapturedId: string | undefined = undefined;
+
+    [appliedMove, enPassantCapturedId] = 
+      this.applyEnPassant(appliedMove, board);
+
+    this.applyPromotion(appliedMove, board);
     this.applyCastling(move, board);
 
-    return appliedMove;
+    /* Piece captured is either from en-passant 
+    /* or direct capture but never both */
+    const capturedPieceId = directCapturedId ?? enPassantCapturedId;
+
+    const capturedPiece =
+      capturedPieceId !== undefined
+        ? board.getPiece(capturedPieceId)!
+        : undefined;
+
+    const movedPiece = board.placePiece(move.pieceId, move.to);
+
+    if (!movedPiece) return [undefined, undefined];
+
+    if(!capturedPiece) return [appliedMove, capturedPiece];
+
+    if (enPassantCapturedId !== undefined)
+      board.removePiece(enPassantCapturedId);
+
+    return [
+      appliedMove, {
+        ...capturedPiece!, 
+        capturedBy: movedPiece.color
+      }
+    ];
   }
 
   private withDirectCapture(move: Move, board: Board): Move {
@@ -66,13 +104,14 @@ export class DefaultRuleSet extends RuleSet {
     return { ...move, capture: capturedPiece.id };
   }
 
-  private applyEnPassantCapture(move: Move, board: Board): Move {
+  private applyEnPassant(
+    move: Move, 
+    board: Board)
+    : [Move, string | undefined] {
     const capturedPieceId = this.getCapturedPieceIdForEnPassant(move, board);
-    if (!capturedPieceId) return move;
+    if (!capturedPieceId) return [move, undefined];
 
-    board.removePiece(capturedPieceId);
-
-    return { ...move, capture: capturedPieceId };
+    return [{ ...move, capture: capturedPieceId }, capturedPieceId];
   }
 
   private getCapturedPieceIdForEnPassant(
@@ -119,6 +158,12 @@ export class DefaultRuleSet extends RuleSet {
     );
   }
 
+  private awardPoints(_game: Game): void {
+    this.awardCapturePoints(_game);
+    this.awardMultiCheckPoints(_game);
+    this.awardMatePoints(_game);
+  }
+
   public awardCapturePoints (_game: Game): void {
 
     const history = _game.getHistory();
@@ -127,14 +172,16 @@ export class DefaultRuleSet extends RuleSet {
 
     if (capturedPieceId === undefined) return;
 
-    const board = _game.getBoard();
-    const capturedPiece = board.getPiece(capturedPieceId)!;
+    const capturedPiece = _game.getCapturedPiece(capturedPieceId)!;
     if(!capturedPiece.active) return;
 
-    const piecePlayed = _game.getBoard().getPiece(lastMove.pieceId)!;
-    const rewardedPoints = capturedPiece.points? capturedPiece.points: 0;
+    const awardedPoints = capturedPiece.points? capturedPiece.points: 0;
 
-    this.awardPoints(piecePlayed.color, rewardedPoints, _game); 
+    this.awardPlayerPoints(
+      capturedPiece.capturedBy,
+      awardedPoints,
+      _game
+    ); 
 
   }
 
@@ -156,14 +203,14 @@ export class DefaultRuleSet extends RuleSet {
 
     switch(movedPiece.type) {
       case PieceType.QUEEN:
-        this.awardPoints(
+        this.awardPlayerPoints(
           movedPiece.color,
           checkedKings.size === 2? 1: 5,
           _game
         );
         return;
       default:
-        this.awardPoints(
+        this.awardPlayerPoints(
           movedPiece.color,
           checkedKings.size === 2? 5: 20,
           _game
@@ -209,7 +256,7 @@ export class DefaultRuleSet extends RuleSet {
 
       while (current !== checkedColor) {
           if (attackers.includes(current)) {
-              this.awardPoints(current, 20, game);
+              this.awardPlayerPoints(current, 20, game);
               return;
           }
 
@@ -221,7 +268,7 @@ export class DefaultRuleSet extends RuleSet {
       stalledColor: Color,
       game: Game
   ): void {
-      this.awardPoints(stalledColor, 20, game);
+      this.awardPlayerPoints(stalledColor, 20, game);
 
       for (const color of PLAYER_COLORS) {
           if (color === stalledColor) {
@@ -229,9 +276,21 @@ export class DefaultRuleSet extends RuleSet {
           }
 
           if (game.isPlayerActive(color)) {
-              this.awardPoints(color, 10, game);
+              this.awardPlayerPoints(color, 10, game);
           }
       }
+  }
+
+  private endGame(game: Game): void {
+    const activePlayers = PLAYER_COLORS.filter(color =>
+      game.isPlayerActive(color)
+    );
+
+    if (activePlayers.length !== 1) {
+      return;
+    }
+
+    game.setGameStatus(GameStatus.OVER);
   }
 
   private getCheckingPlayers(
@@ -256,7 +315,7 @@ export class DefaultRuleSet extends RuleSet {
       return attackers;
   }
 
-  private awardPoints(
+  private awardPlayerPoints(
       color: Color,
       points: number,
       game: Game
@@ -567,10 +626,6 @@ export class DefaultRuleSet extends RuleSet {
       this.isPlayerMate(currentPlayerColor, game)
     ) {
       game.setPlayerState(currentPlayerColor, PlayerState.STALEMATE);
-    }
-
-    for (const color of PLAYER_COLORS) {
-      this.updatePlayerPiecesStatus(color, game);
     }
 
     return;
