@@ -33,6 +33,7 @@ export class MoveGenerator {
   ): number[] {
     const piecePosition = board.getPositionOf(piece.id);
     if (piecePosition === undefined) return [];
+    if (!piece.active) return [];
 
     switch (piece.type) {
       case PieceType.KNIGHT:

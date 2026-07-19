@@ -2,7 +2,7 @@ import { Board } from "../board";
 import { Move } from "../moves";
 import { Player } from "../players";
 import { RuleSet } from "../rules";
-import { Color, Piece } from "../types";
+import { Color, GameStatus, Piece, PlayerState } from "../types";
 import { GameState } from "./game-state";
 
 const NEXT_PLAYER_COLOR = new Map<Color, Color>([
@@ -65,6 +65,7 @@ export class Game {
   }
 
   public getCurrentPlayerColor(): Color {
+    // Game starts with RED by default
     if (this.history.length === 0) return Color.RED;
 
     const lastMove = this.history[this.history.length - 1];
@@ -74,13 +75,17 @@ export class Game {
   }
 
   public getPlayer(color: Color): Player {
-      const player = this.players.find(p => p.getColor() === color);
+    const player = this.players.find(p => p.getColor() === color);
 
-      if (!player) {
-          throw new Error(`Unknown player ${color}`);
-      }
+    if (!player) {
+        throw new Error(`Unknown player ${color}`);
+    }
 
-      return player;
+    return player;
+  }
+
+  public getPlayerState(color: Color): PlayerState {
+    return this.gameState.getPlayerState(color)!;
   }
 
   public getLegalMoves(pieceId: string): Move[] {
@@ -91,12 +96,46 @@ export class Game {
     return this.movedPieces.has(pieceId);
   }
 
+  public incrementPlayerScore(color: Color, points: number): void {
+    const playerIndex = this.players.findIndex(
+      p => p.getColor() === color
+    );
+    this.players[playerIndex].incrementScore(points);
+  }
+
   public isPlayerActive(color: Color): boolean {
-    const player = this.getPlayer(color);
-    return player?.getStatus() === 'active'? true: false;
+    const isActive = 
+      this.getPlayerState(color) === PlayerState.NORMAL ||
+      this.getPlayerState(color) === PlayerState.CHECK;
+    return isActive;
+  }
+
+  public isPlayerResignedOrTimedOut(color: Color): boolean {
+    const resignedOrTimedOut = 
+      this.getPlayerState(color) === PlayerState.RESIGNED ||
+      this.getPlayerState(color) === PlayerState.TIMED_OUT;
+    return resignedOrTimedOut;
   }
 
   public getNextPlayerColor(previous: Color): Color {
-    return NEXT_PLAYER_COLOR.get(previous)!;
+    let next = NEXT_PLAYER_COLOR.get(previous)!;
+    while(!this.isPlayerActive(next))
+      next = NEXT_PLAYER_COLOR.get(next)!;
+    return next;
+  }
+
+  public setGameStatus(status: GameStatus): void {
+    this.gameState.setStatus(status);
+  }
+
+  public setPlayerState(color: Color, state: PlayerState): void {
+    this.gameState.setPlayerState(color, state);
+  }
+
+  public setPlayerInactive(
+    color: Color,
+    keepKingActive: boolean = false
+  ): void {
+    this.board.setPlayerPiecesInactive(color, keepKingActive);
   }
 }

@@ -1,4 +1,4 @@
-import { Game, GameState } from "../game";
+import { Game } from "../game";
 import { Move, MoveGenerator } from "../moves";
 import { Color, Piece } from "../types";
 
@@ -20,7 +20,7 @@ export abstract class RuleSet {
 
   abstract promotion(pawn: Piece, from: number): Move | undefined;
 
-  abstract updateGameState(game: Game): GameState;
+  abstract updateGameState(game: Game): void;
 
   abstract getCheckInfos(player: Color, game: Game): Map<string, Color[]>;
 

@@ -103,6 +103,23 @@ export class Board {
     return piece;
   }
 
+  public setPlayerPiecesInactive(
+    color: Color,
+    keepKingActive: boolean = false
+  ): void {
+    const king = this.pieces.get(`K-${color}`);
+    if (king && king.active && !keepKingActive) this.pieces.set(
+      `K-${color}`, 
+      {...king, active: false}
+    );
+    this.pieces.forEach((p, id, _) => {
+      if (p.color === color && p.type !== PieceType.KING) {
+        if(!p.active) return;
+        this.pieces.set(p.id, {...p, active: false })
+      }
+    });
+  }
+
   public setPromotionPieceType(pieceId: string, newType: PieceType): void {
     const piece = this.getPiece(pieceId);
 

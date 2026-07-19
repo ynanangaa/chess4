@@ -129,6 +129,8 @@ export class DefaultRuleSet extends RuleSet {
 
     const board = _game.getBoard();
     const capturedPiece = board.getPiece(capturedPieceId)!;
+    if(!capturedPiece.active) return;
+
     const piecePlayed = _game.getBoard().getPiece(lastMove.pieceId)!;
     const rewardedPoints = capturedPiece.points? capturedPiece.points: 0;
 
@@ -172,7 +174,7 @@ export class DefaultRuleSet extends RuleSet {
 
   public awardMatePoints(game: Game): void {
       for (const color of PLAYER_COLORS) {
-          switch (game.getGameState().getPlayerState(color)) {
+          switch (game.getPlayerState(color)) {
               case PlayerState.CHECKMATE:
                   this.awardCheckmatePoints(color, game);
                   break;
@@ -226,7 +228,7 @@ export class DefaultRuleSet extends RuleSet {
               continue;
           }
 
-          if (game.getPlayer(color).getStatus() === 'active') {
+          if (game.isPlayerActive(color)) {
               this.awardPoints(color, 10, game);
           }
       }
@@ -259,7 +261,7 @@ export class DefaultRuleSet extends RuleSet {
       points: number,
       game: Game
   ): void {
-      game.getPlayer(color).incrementScore(points);
+      game.incrementPlayerScore(color, points);
   }
 
   public getLegalMoves(pieceId: string, game: Game): Move[] {
@@ -268,7 +270,7 @@ export class DefaultRuleSet extends RuleSet {
     if (!selectedPiece) return [];
 
     const from = board.getPositionOf(pieceId)!;
-    const playerState = game.getGameState().getPlayerState(selectedPiece.color)!;
+    const playerState = game.getPlayerState(selectedPiece.color);
 
     if (
       playerState === PlayerState.CHECKMATE ||
@@ -278,6 +280,8 @@ export class DefaultRuleSet extends RuleSet {
     }
 
     const pseudoLegalMoves = this.moveGenerator.generateMovesForPiece(selectedPiece, board);
+    if (pseudoLegalMoves.length === 0) return [];
+
     let moves = pseudoLegalMoves.map(to =>
       this.moveGenerator.buildMove(pieceId, from, to)
     );
@@ -346,7 +350,8 @@ export class DefaultRuleSet extends RuleSet {
     for (const color of PLAYER_COLORS) {
       const kingPos = board.getPositionOf(`K-${color}`);
       if (kingPos !== undefined) {
-        enemyKings.set(color, kingPos);
+        if (board.getPieceAt(kingPos)!.active)
+          enemyKings.set(color, kingPos);
       }
     }
 
@@ -397,7 +402,9 @@ export class DefaultRuleSet extends RuleSet {
   }
 
   public getCastleMoves(player: Color, game: Game): Move[] {
-    if (game.getGameState().getPlayerState(player) === PlayerState.CHECK) {
+    if (game.getPlayerState(player) === PlayerState.CHECK ||
+        game.isPlayerResignedOrTimedOut(player)
+    ) {
       return [];
     }
 
@@ -523,16 +530,16 @@ export class DefaultRuleSet extends RuleSet {
     return this.getActiveChecks(game.getBoard(), [player]);
   }
 
-  public updateGameState(game: Game): GameState {
+  updateGameState(game: Game): void {
     const state = game.getGameState();
-    if (state.getStatus() !== GameStatus.RUNNING) return state;
+    if (state.getStatus() !== GameStatus.RUNNING) return;
     
     const currentPlayerColor = game.getCurrentPlayerColor();
 
     // Reset all active CHECK states before recomputing them.
     for (const color of PLAYER_COLORS) {
-      if (state.getPlayerState(color) === PlayerState.CHECK) {
-        state.setPlayerState(color, PlayerState.NORMAL);
+      if (game.getPlayerState(color) === PlayerState.CHECK) {
+        game.setPlayerState(color, PlayerState.NORMAL);
       }
     }
 
@@ -545,26 +552,28 @@ export class DefaultRuleSet extends RuleSet {
     const checkedColors: Color[] = Array.from(activeChecks.values()).flat();
 
     for (const color of new Set(checkedColors)) {
-      state.setPlayerState(color, PlayerState.CHECK);
+      game.setPlayerState(color, PlayerState.CHECK);
     }
 
     if (
-      state.getPlayerState(currentPlayerColor) === PlayerState.CHECK &&
+      game.getPlayerState(currentPlayerColor) === PlayerState.CHECK &&
       this.isPlayerMate(currentPlayerColor, game)
     ) {
-      state.setPlayerState(currentPlayerColor, PlayerState.CHECKMATE);
-      game.getPlayer(currentPlayerColor).setStatus('inactive');
+      game.setPlayerState(currentPlayerColor, PlayerState.CHECKMATE);
     }
 
     if (
-      state.getPlayerState(currentPlayerColor) === PlayerState.NORMAL &&
+      game.getPlayerState(currentPlayerColor) === PlayerState.NORMAL &&
       this.isPlayerMate(currentPlayerColor, game)
     ) {
-      state.setPlayerState(currentPlayerColor, PlayerState.STALEMATE);
-      game.getPlayer(currentPlayerColor).setStatus('inactive');
+      game.setPlayerState(currentPlayerColor, PlayerState.STALEMATE);
     }
 
-    return state;
+    for (const color of PLAYER_COLORS) {
+      this.updatePlayerPiecesStatus(color, game);
+    }
+
+    return;
   }
 
   public isPlayerMate(player: Color, game: Game): boolean {
@@ -578,5 +587,13 @@ export class DefaultRuleSet extends RuleSet {
     }
 
     return true;
+  }
+
+  private updatePlayerPiecesStatus(color: Color, game: Game): void {
+    if(!game.isPlayerActive(color)) {
+      if(game.isPlayerResignedOrTimedOut(color))
+        game.setPlayerInactive(color, true);
+      else game.setPlayerInactive(color);
+    }
   }
 }

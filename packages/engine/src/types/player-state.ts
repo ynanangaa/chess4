@@ -3,6 +3,6 @@ export enum PlayerState {
     CHECK,
     CHECKMATE,
     STALEMATE,
-    ELIMINATED,
     RESIGNED,
+    TIMED_OUT,
 }

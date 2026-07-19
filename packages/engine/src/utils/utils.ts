@@ -110,6 +110,7 @@ export function createDuplicatePieceId(
 
 export function buildPawn(color: Color, pawnNum: number): Piece {
   return {
+    active: true,
     id: createPieceId(color, PieceType.PAWN, pawnNum),
     color,
     type: PieceType.PAWN,
@@ -137,6 +138,7 @@ export function buildDuplicatePiece(
 ): Piece {
   const points = type === PieceType.KNIGHT? 3: 5;
   return {
+    active: true,
     id: createDuplicatePieceId(color, type, kingSide),
     color,
     type,
@@ -211,6 +213,7 @@ export function kingInitialSquareId(color: Color): number {
 
 export function buildQueen(color: Color): Piece {
   return {
+    active: true,
     id: createPieceId(color, PieceType.QUEEN),
     color,
     type: PieceType.QUEEN,
@@ -220,6 +223,7 @@ export function buildQueen(color: Color): Piece {
 
 export function buildKing(color: Color): Piece {
   return {
+    active: true,
     id: createPieceId(color, PieceType.KING),
     color,
     type: PieceType.KING

@@ -1,4 +1,4 @@
 export enum GameStatus {
-  GAME_OVER,
+  OVER,
   RUNNING,
 }
