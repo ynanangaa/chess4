@@ -175,6 +175,8 @@ export class DefaultRuleSet extends RuleSet {
     const capturedPiece = _game.getCapturedPiece(capturedPieceId)!;
     if(!capturedPiece.active) return;
 
+    if(!_game.isPlayerActive(capturedPiece.capturedBy)) return;
+
     const awardedPoints = capturedPiece.points? capturedPiece.points: 0;
 
     this.awardPlayerPoints(
@@ -221,15 +223,16 @@ export class DefaultRuleSet extends RuleSet {
 
   public awardMatePoints(game: Game): void {
       for (const color of PLAYER_COLORS) {
-          switch (game.getPlayerState(color)) {
-              case PlayerState.CHECKMATE:
-                  this.awardCheckmatePoints(color, game);
-                  break;
+        if(game.isPlayerCheckMated(color)) {
+          this.awardCheckmatePoints(color, game);
+        }
+        if(this.isPlayerStalled(color, game)) {
 
-              case PlayerState.STALEMATE:
-                  this.awardStalematePoints(color, game);
-                  break;
-          }
+          if(!game.isPlayerResignedOrTimedOut(color))
+            this.awardPlayerPoints(color, 20, game);
+
+          this.awardStalematePoints(color, game);
+        }
       }
   }
 
@@ -268,8 +271,6 @@ export class DefaultRuleSet extends RuleSet {
       stalledColor: Color,
       game: Game
   ): void {
-      this.awardPlayerPoints(stalledColor, 20, game);
-
       for (const color of PLAYER_COLORS) {
           if (color === stalledColor) {
               continue;
@@ -635,24 +636,19 @@ export class DefaultRuleSet extends RuleSet {
     return;
   }
 
-  public isPlayerMate(player: Color, game: Game): boolean {
-    const board = game.getBoard();
-    const pieces = board.getPiecesByColor(player);
-
-    for (const piece of pieces) {
-      if (this.getLegalMoves(piece.id, game).length > 0) {
-        return false;
-      }
-    }
-
-    return true;
-  }
-
   private updatePlayerPiecesStatus(color: Color, game: Game): void {
-    if(!game.isPlayerActive(color)) {
-      if(game.isPlayerResignedOrTimedOut(color))
-        game.setPlayerInactive(color, true);
-      else game.setPlayerInactive(color);
+    if (!game.isPlayerActive(color)) {
+
+        if (game.isPlayerResignedOrTimedOut(color)) {
+
+            if (this.isPlayerStalled(color, game))
+                game.setPlayerInactive(color);
+            else
+                game.setPlayerInactive(color, true);
+
+        } else {
+            game.setPlayerInactive(color);
+        }
     }
   }
 }

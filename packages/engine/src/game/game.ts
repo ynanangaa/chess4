@@ -119,6 +119,14 @@ export class Game {
     return isActive;
   }
 
+  public isPlayerCheckMated(color: Color): boolean {
+    return this.getPlayerState(color) === PlayerState.CHECKMATE;
+  }
+
+  public isPlayerStalled(color: Color): boolean {
+    return this.ruleSet.isPlayerStalled(color, this);
+  }
+
   public isPlayerResignedOrTimedOut(color: Color): boolean {
     const resignedOrTimedOut = 
       this.getPlayerState(color) === PlayerState.RESIGNED ||

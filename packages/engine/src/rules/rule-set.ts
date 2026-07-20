@@ -1,6 +1,6 @@
 import { Game } from "../game";
 import { Move, MoveGenerator } from "../moves";
-import { Color, Piece } from "../types";
+import { Color, Piece, PlayerState } from "../types";
 
 export abstract class RuleSet {
 
@@ -24,5 +24,25 @@ export abstract class RuleSet {
 
   abstract getCheckInfos(player: Color, game: Game): Map<string, Color[]>;
 
-  abstract isPlayerMate(player: Color, game: Game): boolean;
+  public isPlayerMate(player: Color, game: Game): boolean {
+    const board = game.getBoard();
+    const pieces = board.getPiecesByColor(player);
+
+    for (const piece of pieces) {
+      if (this.getLegalMoves(piece.id, game).length > 0) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  public isPlayerStalled(player: Color, game: Game): boolean {
+    if(game.getPlayerState(player) === PlayerState.STALEMATE)
+      return true;
+    return (
+      game.isPlayerResignedOrTimedOut(player) && 
+      this.isPlayerMate(player, game)
+    );
+  }
 }
