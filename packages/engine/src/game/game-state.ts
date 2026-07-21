@@ -5,6 +5,7 @@ const PLAYER_COLORS = [Color.RED, Color.BLUE, Color.YELLOW, Color.GREEN];
 export class GameState {
   private status: GameStatus = GameStatus.RUNNING;
   private playerStates = new Map<Color, PlayerState>();
+  private moveClock = 0;
 
   constructor() {
     for (const color of PLAYER_COLORS) {
@@ -22,6 +23,18 @@ export class GameState {
 
   public getPlayerStates(): Map<Color, PlayerState> {
     return new Map(this.playerStates);
+  }
+
+  public getMoveClock(): number {
+    return this.moveClock;
+  }
+
+  public incrementMoveClock(): void {
+    this.moveClock += 1;
+  }
+
+    public resetMoveClock(): void {
+    this.moveClock = 0;
   }
 
   public setStatus(status: GameStatus): void {

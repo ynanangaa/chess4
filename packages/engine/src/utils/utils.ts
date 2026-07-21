@@ -268,6 +268,10 @@ export function initializePieces(color: Color): [Piece[], number[]] {
   return [pieces, initialSquareIds];
 }
 
+export function pickRandomElement<T>(arr: T[]): T {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+
 export function pushIfOccupantIsEnemy(
   moves: number[],
   piece: Piece,

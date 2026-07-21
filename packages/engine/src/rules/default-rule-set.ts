@@ -2,161 +2,19 @@ import { Board } from "../board";
 import { Game } from "../game";
 import { 
   castleDirectionOffset, 
-  enPassantCapturedPawnSquare, 
   forwardDirection, 
   Move, 
   MoveGenerator,
-  rookCastleDirectionOffset, 
 } from "../moves";
-import { CapturedPiece, Color, GameStatus, Piece, PieceType, PlayerState } from "../types";
-import { kingInitialSquareId, rookInitialSquareId } from "../utils";
+import { Color, GameStatus, Piece, PieceType, PlayerState } from "../types";
+import { kingInitialSquareId, pickRandomElement, rookInitialSquareId } from "../utils";
 import { EN_PASSANT_SQUARES_IDS } from "./en-passant-squares-ids";
 import { RuleSet } from "./rule-set";
-
-const PLAYER_COLORS = [Color.RED, Color.BLUE, Color.YELLOW, Color.GREEN];
 
 export class DefaultRuleSet extends RuleSet {
   constructor(
     moveGenerator: MoveGenerator
   ) { super(moveGenerator); }
-
-  public override applyMove(move: Move, game: Game): boolean {
-    // Three stages
-
-    // Stage 1 : Board (moves, captures, castle, promotion)
-    const [appliedMove, capturedPiece]: 
-      [Move | undefined, CapturedPiece | undefined]
-        = this.applyMoveOnBoard(move, game.getBoard());
-    if (!appliedMove) return false;
-
-    // Stage 2 : Game (history, moved and captured pieces, check infos)
-    if (capturedPiece) {
-      game.addCapturedPiece(capturedPiece.id, capturedPiece)
-    }
-    const movedPiece = game.getBoard().getPiece(appliedMove.pieceId)!;
-
-    game.addMovedPiece(appliedMove.pieceId);
-    if (move.castle) {
-        const color = movedPiece.color;
-        game.addMovedPiece(`R-${color}-${move.castle}`);
-    }
-    this.recordMove(appliedMove, movedPiece.color, game);
-
-    // Stage 3 : Rules (Game state update, points awarded, pieces statuses)
-    this.updateGameState(game);
-    this.awardPoints(game);
-
-    for (const color of PLAYER_COLORS) {
-      this.updatePlayerPiecesStatus(color, game);
-    }
-
-    this.endGame(game);
-
-    return true;
-  }
-
-  private applyMoveOnBoard(
-    move: Move, 
-    board: Board
-  ): [Move | undefined, CapturedPiece | undefined] {
-    let appliedMove = this.withDirectCapture(move, board);
-
-    let directCapturedId = appliedMove.capture;
-    let enPassantCapturedId: string | undefined = undefined;
-
-    [appliedMove, enPassantCapturedId] = 
-      this.applyEnPassant(appliedMove, board);
-
-    this.applyPromotion(appliedMove, board);
-    this.applyCastling(move, board);
-
-    /* Piece captured is either from en-passant 
-    /* or direct capture but never both */
-    const capturedPieceId = directCapturedId ?? enPassantCapturedId;
-
-    const capturedPiece =
-      capturedPieceId !== undefined
-        ? board.getPiece(capturedPieceId)!
-        : undefined;
-
-    const movedPiece = board.placePiece(move.pieceId, move.to);
-
-    if (!movedPiece) return [undefined, undefined];
-
-    if(!capturedPiece) return [appliedMove, capturedPiece];
-
-    if (enPassantCapturedId !== undefined)
-      board.removePiece(enPassantCapturedId);
-
-    return [
-      appliedMove, {
-        ...capturedPiece!, 
-        capturedBy: movedPiece.color
-      }
-    ];
-  }
-
-  private withDirectCapture(move: Move, board: Board): Move {
-    const capturedPiece = board.getPieceAt(move.to);
-
-    if (!capturedPiece) return move;
-
-    return { ...move, capture: capturedPiece.id };
-  }
-
-  private applyEnPassant(
-    move: Move, 
-    board: Board)
-    : [Move, string | undefined] {
-    const capturedPieceId = this.getCapturedPieceIdForEnPassant(move, board);
-    if (!capturedPieceId) return [move, undefined];
-
-    return [{ ...move, capture: capturedPieceId }, capturedPieceId];
-  }
-
-  private getCapturedPieceIdForEnPassant(
-    move: Move,
-    board: Board
-  ): string | undefined {
-    if (move.pawnSpecialMove !== "e-p") return undefined;
-
-    const movingPiece = board.getPiece(move.pieceId);
-    if (!movingPiece || movingPiece.type !== PieceType.PAWN) return undefined;
-
-    const capturedSquare = enPassantCapturedPawnSquare(move.to, movingPiece.color);
-    const capturedPiece = board.getPieceAt(capturedSquare);
-    if (!capturedPiece || capturedPiece.color === movingPiece.color) return undefined;
-
-    return capturedPiece.id;
-  }
-
-  private applyPromotion(move: Move, board: Board): void {
-    if (move.pawnSpecialMove === "promotion") {
-      board.setPromotionPieceType(move.pieceId, PieceType.QUEEN);
-    }
-  }
-
-  private applyCastling(move: Move, board: Board): void {
-    if (!move.castle) return;
-
-    const color = board.getPiece(move.pieceId)!.color;
-    const rookId = `R-${color}-${move.castle}`;
-
-    board.placePiece(
-      rookId,
-      move.to + rookCastleDirectionOffset(color, move.castle)
-    );
-  }
-
-  private recordMove(move: Move, color: Color, game: Game): void {
-    const checkInfos = this.getCheckInfos(color, game);
-
-    game.addMoveToHistory(
-      checkInfos.size > 0
-        ? { ...move, check: checkInfos }
-        : move
-    );
-  }
 
   private awardPoints(_game: Game): void {
     this.awardCapturePoints(_game);
@@ -164,7 +22,15 @@ export class DefaultRuleSet extends RuleSet {
     this.awardMatePoints(_game);
   }
 
-  public awardCapturePoints (_game: Game): void {
+  private awardPlayerPoints(
+      color: Color,
+      points: number,
+      game: Game
+  ): void {
+      game.incrementPlayerScore(color, points);
+  }
+
+  protected awardCapturePoints (_game: Game): void {
 
     const history = _game.getHistory();
     const lastMove = history[history.length - 1];
@@ -187,7 +53,7 @@ export class DefaultRuleSet extends RuleSet {
 
   }
 
-  public awardMultiCheckPoints(_game: Game): void {
+  protected awardMultiCheckPoints(_game: Game): void {
     const history = _game.getHistory();
     const lastMove = history[history.length - 1];
 
@@ -221,8 +87,8 @@ export class DefaultRuleSet extends RuleSet {
     }
   }
 
-  public awardMatePoints(game: Game): void {
-      for (const color of PLAYER_COLORS) {
+  protected awardMatePoints(game: Game): void {
+      for (const color of DefaultRuleSet.PLAYER_COLORS) {
         if(game.isPlayerCheckMated(color)) {
           this.awardCheckmatePoints(color, game);
         }
@@ -242,7 +108,7 @@ export class DefaultRuleSet extends RuleSet {
   ): void {
       const checks = this.getActiveChecks(
           game.getBoard(),
-          PLAYER_COLORS
+          DefaultRuleSet.PLAYER_COLORS
       );
 
       const attackers = this.getCheckingPlayers(
@@ -271,7 +137,7 @@ export class DefaultRuleSet extends RuleSet {
       stalledColor: Color,
       game: Game
   ): void {
-      for (const color of PLAYER_COLORS) {
+      for (const color of DefaultRuleSet.PLAYER_COLORS) {
           if (color === stalledColor) {
               continue;
           }
@@ -282,10 +148,8 @@ export class DefaultRuleSet extends RuleSet {
       }
   }
 
-  private endGame(game: Game): void {
-    const activePlayers = PLAYER_COLORS.filter(color =>
-      game.isPlayerActive(color)
-    );
+  public endGame(game: Game): void {
+    const activePlayers = this.getActivePlayers(game);
 
     if (activePlayers.length !== 1) {
       return;
@@ -316,102 +180,14 @@ export class DefaultRuleSet extends RuleSet {
       return attackers;
   }
 
-  private awardPlayerPoints(
-      color: Color,
-      points: number,
-      game: Game
-  ): void {
-      game.incrementPlayerScore(color, points);
-  }
-
-  public getLegalMoves(pieceId: string, game: Game): Move[] {
-    const board = game.getBoard();
-    const selectedPiece = board.getPiece(pieceId);
-    if (!selectedPiece) return [];
-
-    const from = board.getPositionOf(pieceId)!;
-    const playerState = game.getPlayerState(selectedPiece.color);
-
-    if (
-      playerState === PlayerState.CHECKMATE ||
-      playerState === PlayerState.STALEMATE
-    ) {
-      return [];
-    }
-
-    const pseudoLegalMoves = this.moveGenerator.generateMovesForPiece(selectedPiece, board);
-    if (pseudoLegalMoves.length === 0) return [];
-
-    let moves = pseudoLegalMoves.map(to =>
-      this.moveGenerator.buildMove(pieceId, from, to)
-    );
-
-    if (selectedPiece.type === PieceType.PAWN) {
-      moves = this.withPawnSpecialMoves(selectedPiece, from, game, moves);
-    }
-
-    if (selectedPiece.type === PieceType.KING) {
-      moves.push(...this.getCastleMoves(selectedPiece.color, game));
-    }
-
-    moves = moves.filter(move =>
-      this.isMoveLegal(move, selectedPiece.color, board)
-    );
-
-    return moves;
-  }
-
-  private isMoveLegal(
-      move: Move,
-      color: Color,
-      board: Board
-  ): boolean {
-    // Each candidate move must be tried on its own fresh clone of the
-    // original position. Reusing a single mutated clone across multiple
-    // candidate moves (as this used to do) leaks the side effects of one
-    // candidate (captures, piece removals, etc.) into the legality check
-    // of the next candidate, producing false positives/negatives.
-    const boardClone = board.clone();
-
-    this.applyMoveOnBoard(move, boardClone);
-
-    const checks = this.getActiveChecks(
-        boardClone,
-        PLAYER_COLORS
-    );
-
-    return ![...checks.values()].some(colors => colors.includes(color));
-  }
-
-  private withPawnSpecialMoves(
-    pawn: Piece,
-    from: number,
-    game: Game,
-    moves: Move[]
-  ): Move[] {
-    const board = game.getBoard();
-    const promotionMove = this.promotion(pawn, from);
-    const doubleStepMove = this.getPawnDoubleStep(pawn, from, board);
-    const enPassantMove = this.getEnPassantMove(pawn, from, game);
-
-    if (promotionMove) {
-      moves = moves.map(move => promotionMove.to === move.to ? promotionMove : move);
-    }
-
-    if (doubleStepMove) moves.push(doubleStepMove);
-    if (enPassantMove) moves.push(enPassantMove);
-
-    return moves;
-  }
-
-  private getActiveChecks(
+  protected getActiveChecks(
     board: Board,
     players: Iterable<Color>
   ): Map<string, Color[]> {
     const enemyKings = new Map<Color, number>();
     const checkInfos = new Map<string, Color[]>();
 
-    for (const color of PLAYER_COLORS) {
+    for (const color of DefaultRuleSet.PLAYER_COLORS) {
       const kingPos = board.getPositionOf(`K-${color}`);
       if (kingPos !== undefined) {
         if (board.getPieceAt(kingPos)!.active)
@@ -437,6 +213,27 @@ export class DefaultRuleSet extends RuleSet {
     }
 
     return checkInfos;
+  }
+
+  protected withPawnSpecialMoves(
+    pawn: Piece,
+    from: number,
+    game: Game,
+    moves: Move[]
+  ): Move[] {
+    const board = game.getBoard();
+    const promotionMove = this.promotion(pawn, from);
+    const doubleStepMove = this.getPawnDoubleStep(pawn, from, board);
+    const enPassantMove = this.getEnPassantMove(pawn, from, game);
+
+    if (promotionMove) {
+      moves = moves.map(move => promotionMove.to === move.to ? promotionMove : move);
+    }
+
+    if (doubleStepMove) moves.push(doubleStepMove);
+    if (enPassantMove) moves.push(enPassantMove);
+
+    return moves;
   }
 
   private getPawnDoubleStep(pawn: Piece, from: number, board: Board): Move | undefined {
@@ -512,7 +309,7 @@ export class DefaultRuleSet extends RuleSet {
     return castle;
   }
 
-  public canDoubleSteps(pawn: Piece, from: number): boolean {
+  protected canDoubleSteps(pawn: Piece, from: number): boolean {
     switch (pawn.color) {
       case Color.RED:
         return from % 14 + 1 === 2;
@@ -590,18 +387,22 @@ export class DefaultRuleSet extends RuleSet {
     );
   }
 
-  public getCheckInfos(player: Color, game: Game): Map<string, Color[]> {
-    return this.getActiveChecks(game.getBoard(), [player]);
-  }
-
-  updateGameState(game: Game): void {
-    const state = game.getGameState();
-    if (state.getStatus() !== GameStatus.RUNNING) return;
+  public updateGameState(game: Game): void {
+    if (game.isOver()) return;
+    
+    const history = game.getHistory();
+    const lastMove = history[history.length - 1];
+    const piecePlayed = game.getBoard().getPiece(lastMove.pieceId)!;
+    if (!lastMove.capture && piecePlayed.type !== PieceType.PAWN) {
+      game.incrementMoveClock();
+    } else {
+        game.resetMoveClock();
+    }
     
     const currentPlayerColor = game.getCurrentPlayerColor();
 
     // Reset all active CHECK states before recomputing them.
-    for (const color of PLAYER_COLORS) {
+    for (const color of DefaultRuleSet.PLAYER_COLORS) {
       if (game.getPlayerState(color) === PlayerState.CHECK) {
         game.setPlayerState(color, PlayerState.NORMAL);
       }
@@ -610,7 +411,7 @@ export class DefaultRuleSet extends RuleSet {
     // Recompute all active checks from the current board position.
     const activeChecks = this.getActiveChecks(
       game.getBoard(),
-      PLAYER_COLORS
+      DefaultRuleSet.PLAYER_COLORS
     );
 
     const checkedColors: Color[] = Array.from(activeChecks.values()).flat();
@@ -636,6 +437,17 @@ export class DefaultRuleSet extends RuleSet {
     return;
   }
 
+  protected applyRulesPostMove(game: Game): void {
+    this.updateGameState(game);
+    this.awardPoints(game);
+
+    for (const color of DefaultRuleSet.PLAYER_COLORS) {
+      this.updatePlayerPiecesStatus(color, game);
+    }
+
+    this.endGame(game);
+  }
+
   private updatePlayerPiecesStatus(color: Color, game: Game): void {
     if (!game.isPlayerActive(color)) {
 
@@ -650,5 +462,104 @@ export class DefaultRuleSet extends RuleSet {
             game.setPlayerInactive(color);
         }
     }
+  }
+
+  public isInsufficientMaterial(game: Game): boolean {
+    const remainingPieces = new Map<Color, Piece[]>([
+      [Color.RED, []], [Color.BLUE, []],
+      [Color.YELLOW, []], [Color.GREEN, []]
+    ]);
+
+    const remainingKingsMovesLength = new Map<Color, number>([
+      [Color.RED, 0], [Color.BLUE, 0],
+      [Color.YELLOW, 0], [Color.GREEN, 0]
+    ]);
+
+    for (const color of DefaultRuleSet.PLAYER_COLORS) {
+      // Ignore players that are already out of the game.
+      // Resigned or timed-out kings are still considered because they
+      // remain active until they are eventually checkmated or stalemated.
+      if(!game.isPlayerActive(color) && 
+         !game.isPlayerResignedOrTimedOut(color)
+        ) {
+          continue;
+        }
+
+      const pieces = game.getBoard().getPiecesByColor(color);
+
+      for (const piece of pieces) {
+        // Any remaining pawn, rook or queen is sufficient mating material.
+        if (
+          piece.type !== PieceType.BISHOP &&
+          piece.type !== PieceType.KNIGHT &&
+          piece.type !== PieceType.KING
+        ) {
+          return false;
+        }
+
+        const playerPieces = remainingPieces.get(color)!;
+        if(piece.active) {
+          // Still necessary condition because
+          // of resigned or timed-out players
+          playerPieces.push(piece);
+        }
+        remainingPieces.set(color, playerPieces);
+
+        // Store the king mobility.
+        // It is only needed for the king + two knights endgame,
+        // where checkmate remains theoretically possible if the defending
+        // king still has enough freedom to cooperate unintentionally.
+        if (piece.type === PieceType.KING) {
+          const kingMoves = this.moveGenerator.generateMovesForPiece(
+            piece,
+            game.getBoard()
+          );
+
+          remainingKingsMovesLength.set(color, kingMoves.length);
+        }
+      }
+
+      const remainingPieceTypes = remainingPieces
+        .get(color)!
+        .map(piece => piece.type);
+
+      // More than king + two minor pieces is always sufficient material.
+      if (remainingPieceTypes.length > 3)
+        return false;
+
+      // Any combination containing a bishop (K+B+B or K+B+N)
+      // is sufficient mating material.
+      if (
+        remainingPieceTypes.length === 3 &&
+        remainingPieceTypes.includes(PieceType.BISHOP)
+      ) {
+        return false;
+      }
+    }
+
+    let hasDoubleKnight = false;
+
+    for (const pieces of remainingPieces.values()) {
+      if (pieces.length === 3) {
+        hasDoubleKnight = true;
+        break;
+      }
+    }
+
+    // Only kings, kings + bishops and kings + single knights remain.
+    // None of these positions can lead to a forced checkmate.
+    if (!hasDoubleKnight)
+      return true;
+
+    // At least one player still has king + two knights.
+    // Checkmate remains theoretically possible only if a defending king
+    // still has enough legal moves to cooperate unintentionally.
+    const kingMoveCounts = Array.from(remainingKingsMovesLength.values());
+
+    return kingMoveCounts.some(moveCount => moveCount >= 2);
+  }
+
+  public isGameDrawBy50MovesRule(game: Game): boolean {
+    return game.getMoveClock() >= 200;
   }
 }

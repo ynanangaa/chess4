@@ -57,6 +57,10 @@ export class Game {
     return this.ruleSet.applyMove(move, this);
   }
 
+  public claimVictory(player: Color): boolean {
+    return this.ruleSet.claimVictory(player, this);
+  }
+
   public getBoard(): Board {
     return this.board;
   }
@@ -81,6 +85,7 @@ export class Game {
     const previousColor = this.board.getPiece(lastMove.pieceId)!.color;
 
     return this.getNextPlayerColor(previousColor);
+    //return NEXT_PLAYER_COLOR.get(previous)!;
   }
 
   public getPlayer(color: Color): Player {
@@ -101,8 +106,16 @@ export class Game {
     return this.ruleSet.getLegalMoves(pieceId, this);
   }
 
+  public getMoveClock(): number {
+    return this.gameState.getMoveClock();
+  }
+
   public hasPieceMoved(pieceId: string): boolean {
     return this.movedPieces.has(pieceId);
+  }
+
+  public incrementMoveClock(): void {
+    this.gameState.incrementMoveClock();
   }
 
   public incrementPlayerScore(color: Color, points: number): void {
@@ -110,6 +123,10 @@ export class Game {
       p => p.getColor() === color
     );
     this.players[playerIndex].incrementScore(points);
+  }
+
+  public isOver(): boolean {
+    return this.gameState.getStatus() === GameStatus.OVER;
   }
 
   public isPlayerActive(color: Color): boolean {
@@ -144,6 +161,10 @@ export class Game {
   public rankPlayersByScore(): Player[] {
     return this.players.sort((a, b) => 
       b.getScore() - a.getScore());
+  }
+
+  public resetMoveClock(): void {
+    this.gameState.resetMoveClock();
   }
 
   public setGameStatus(status: GameStatus): void {
