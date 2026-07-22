@@ -57,8 +57,8 @@ export class Game {
     return this.ruleSet.applyMove(move, this);
   }
 
-  public advanceTurn(move?: Move): boolean {
-    return this.ruleSet.advanceTurn(this, move);
+  public advanceTurn(move?: Move, resign: boolean = false): boolean {
+    return this.ruleSet.advanceTurn(this, move, resign);
   }
 
   public claimVictory(player: Color): boolean {

@@ -38,10 +38,14 @@ export abstract class RuleSet {
     return true;
   }
 
-  public advanceTurn(game: Game, move?: Move): boolean {
+  public advanceTurn(game: Game, move?: Move, resign: boolean = false): boolean {
     if (game.isOver()) return false;
 
     const currentPlayer = game.getCurrentPlayerColor();
+
+    if (resign) {
+      game.setPlayerState(currentPlayer, PlayerState.RESIGNED);
+    }
 
     if (game.isPlayerActive(currentPlayer)) {
       if (!move) return false;

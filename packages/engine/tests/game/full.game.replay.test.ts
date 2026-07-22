@@ -120,8 +120,7 @@ describe('Game integration - full 4-player game replay', () => {
     // ---------------------------------------------------------------------
     // RED resigns
     // ---------------------------------------------------------------------
-    game.setPlayerState(Color.RED, PlayerState.RESIGNED);
-    game.setPlayerInactive(Color.RED, true);
+    expect(game.advanceTurn(undefined, true)).toBe(true);
 
     expect(
       game.getBoard().getPiece(createPieceId(Color.RED, PieceType.KING))!.active
@@ -132,8 +131,6 @@ describe('Game integration - full 4-player game replay', () => {
     expect(
       game.getBoard().getPiece(createDuplicatePieceId(Color.RED, PieceType.KNIGHT, true))!.active
     ).toBe(false);
-    expect(game.getCurrentPlayerColor()).toBe(Color.RED);
-    expect(game.advanceTurn()).toBe(true);
     expect(game.getCurrentPlayerColor()).toBe(Color.BLUE);
     expect(game.isPlayerActive(Color.RED)).toBe(false);
     expect(game.isPlayerActive(Color.GREEN)).toBe(false);
