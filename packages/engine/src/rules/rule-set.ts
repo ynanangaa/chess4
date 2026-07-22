@@ -16,10 +16,7 @@ export abstract class RuleSet {
 
   public applyMove(move: Move, game: Game): boolean {
     if (game.isOver()) return false;
-
-    // Three stages
-
-    // Stage 1 : Board (moves, captures, castle, promotion)
+    
     const [appliedMove, capturedPiece]: 
       [Move | undefined, CapturedPiece | undefined]
         = this.applyMoveOnBoard(move, game.getBoard());
@@ -38,8 +35,43 @@ export abstract class RuleSet {
     }
     this.recordMove(appliedMove, movedPiece.color, game);
 
-    // Stage 3 : Rules (Game state update, points awarded, pieces statuses)
+    return true;
+  }
+
+  public advanceTurn(game: Game, move?: Move): boolean {
+    if (game.isOver()) return false;
+
+    const currentPlayer = game.getCurrentPlayerColor();
+
+    if (game.isPlayerActive(currentPlayer)) {
+      if (!move) return false;
+
+      const movedPiece = game.getBoard().getPiece(move.pieceId);
+      if (!movedPiece || movedPiece.color !== currentPlayer) return false;
+      if (!this.applyMove(move, game)) return false;
+
+      game.advanceCurrentPlayer();
+      this.applyRulesPostMove(game);
+
+      return true;
+    } else if (game.isPlayerResignedOrTimedOut(currentPlayer)) {
+      if (this.isPlayerMate(currentPlayer, game)) {
+        game.incrementMoveClock();
+      } else {
+        const kingMove = this.chooseRandomKingMove(currentPlayer, game);
+
+        if (kingMove) {
+          this.applyMove(kingMove, game);
+        } else {
+          game.incrementMoveClock();
+        }
+      }
+    } else {
+      game.incrementMoveClock();
+    }
+
     this.applyRulesPostMove(game);
+    game.advanceCurrentPlayer();
 
     return true;
   }
@@ -147,8 +179,10 @@ export abstract class RuleSet {
     );
   }
 
-  private chooseRandomKingMove(color: Color, game: Game): Move {
+  private chooseRandomKingMove(color: Color, game: Game): Move | undefined {
     const kingMoves = this.getLegalMoves(`K-${color}`, game);
+    if (kingMoves.length === 0) return undefined;
+
     return pickRandomElement(kingMoves);
   }
 
@@ -287,22 +321,6 @@ export abstract class RuleSet {
       }
     }
 
-    return true;
-  }
-
-  public isPlayerStalled(player: Color, game: Game): boolean {
-    if(game.getPlayerState(player) === PlayerState.STALEMATE)
-      return true;
-    return (
-      game.isPlayerResignedOrTimedOut(player) && 
-      this.isPlayerMate(player, game)
-    );
-  }
-
-  public skipMove(color: Color, game: Game): boolean {
-    if(game.getCurrentPlayerColor() === color)
-      return false;
-    this.applyRulesPostMove(game);
     return true;
   }
 }

@@ -20,7 +20,7 @@ describe('Game integration - full 4-player game replay', () => {
     function move(pieceId: string, row: number, col: number): void {
       const to = parseSquareId(row, col);
       const legalMove = findMoveTo(game, pieceId, to);
-      expect(game.applyMove(legalMove!)).toBe(true);
+      expect(game.advanceTurn(legalMove!)).toBe(true);
     }
 
     // --- Round 1 ---
@@ -83,19 +83,25 @@ describe('Game integration - full 4-player game replay', () => {
     expect(capturedGreenPawn6).toBeDefined();
     expect(capturedGreenPawn6?.capturedBy).toBe(Color.YELLOW);
 
-    // GREEN is CHECKMATE: current player color is RED, all of GREEN's
-    // pieces are inactive (e.g. K-green and Q-green).
+    // GREEN is CHECKMATE: its pieces are inactive, but its turn still exists
+    // in the natural rotation and must be advanced explicitly.
     expect(game.getPlayerState(Color.GREEN)).toBe(PlayerState.CHECKMATE);
-    expect(game.getCurrentPlayerColor()).toBe(Color.RED);
+    expect(game.getCurrentPlayerColor()).toBe(Color.GREEN);
     expect(game.getBoard().getPiece('K-green')?.active).toBe(false);
     expect(game.getBoard().getPiece('Q-green')?.active).toBe(false);
 
-    // --- Round 7 (GREEN is eliminated, no turn for GREEN) ---
+    expect(game.advanceTurn()).toBe(true);
+    expect(game.getCurrentPlayerColor()).toBe(Color.RED);
+
+    // --- Round 7 (GREEN is eliminated, so its turn is consumed) ---
     move('N-red-kingside', 5, 12);
     move('blue-2', 10, 3);
     move('N-yellow-kingside', 12, 6);
+    expect(game.getCurrentPlayerColor()).toBe(Color.GREEN);
+    expect(game.advanceTurn()).toBe(true);
+    expect(game.getCurrentPlayerColor()).toBe(Color.RED);
 
-    // --- Round 8 (GREEN is eliminated, no turn for GREEN) ---
+    // --- Round 8 (GREEN is eliminated, so its turn is consumed) ---
     move('N-red-kingside', 6, 14);
     const capturedGreenQueensideBishop = game.getCapturedPiece('B-green-queenside');
     expect(capturedGreenQueensideBishop).toBeDefined();
@@ -107,6 +113,9 @@ describe('Game integration - full 4-player game replay', () => {
     expect(capturedRedQueensideRook?.capturedBy).toBe(Color.BLUE);
 
     move('Q-yellow', 12, 10);
+    expect(game.getCurrentPlayerColor()).toBe(Color.GREEN);
+    expect(game.advanceTurn()).toBe(true);
+    expect(game.getCurrentPlayerColor()).toBe(Color.RED);
 
     // ---------------------------------------------------------------------
     // RED resigns
@@ -123,6 +132,8 @@ describe('Game integration - full 4-player game replay', () => {
     expect(
       game.getBoard().getPiece(createDuplicatePieceId(Color.RED, PieceType.KNIGHT, true))!.active
     ).toBe(false);
+    expect(game.getCurrentPlayerColor()).toBe(Color.RED);
+    expect(game.advanceTurn()).toBe(true);
     expect(game.getCurrentPlayerColor()).toBe(Color.BLUE);
     expect(game.isPlayerActive(Color.RED)).toBe(false);
     expect(game.isPlayerActive(Color.GREEN)).toBe(false);

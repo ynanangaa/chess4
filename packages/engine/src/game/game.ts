@@ -57,6 +57,10 @@ export class Game {
     return this.ruleSet.applyMove(move, this);
   }
 
+  public advanceTurn(move?: Move): boolean {
+    return this.ruleSet.advanceTurn(this, move);
+  }
+
   public claimVictory(player: Color): boolean {
     return this.ruleSet.claimVictory(player, this);
   }
@@ -78,14 +82,7 @@ export class Game {
   }
 
   public getCurrentPlayerColor(): Color {
-    // Game starts with RED by default
-    if (this.history.length === 0) return Color.RED;
-
-    const lastMove = this.history[this.history.length - 1];
-    const previousColor = this.board.getPiece(lastMove.pieceId)!.color;
-
-    return this.getNextPlayerColor(previousColor);
-    //return NEXT_PLAYER_COLOR.get(previous)!;
+    return this.gameState.getCurrentPlayerColor();
   }
 
   public getPlayer(color: Color): Player {
@@ -102,6 +99,10 @@ export class Game {
     return this.gameState.getPlayerState(color)!;
   }
 
+  public getPlayerStates(color: Color): PlayerState[] {
+    return this.gameState.getPlayerStates(color);
+  }
+
   public getLegalMoves(pieceId: string): Move[] {
     return this.ruleSet.getLegalMoves(pieceId, this);
   }
@@ -112,6 +113,10 @@ export class Game {
 
   public hasPieceMoved(pieceId: string): boolean {
     return this.movedPieces.has(pieceId);
+  }
+
+  public hasPlayerState(color: Color, state: PlayerState): boolean {
+    return this.gameState.hasPlayerState(color, state);
   }
 
   public incrementMoveClock(): void {
@@ -130,31 +135,47 @@ export class Game {
   }
 
   public isPlayerActive(color: Color): boolean {
-    const isActive = 
-      this.getPlayerState(color) === PlayerState.NORMAL ||
-      this.getPlayerState(color) === PlayerState.CHECK;
-    return isActive;
+    return (
+      (
+        this.hasPlayerState(color, PlayerState.NORMAL) ||
+        this.hasPlayerState(color, PlayerState.CHECK)
+      ) &&
+      !this.hasPlayerState(color, PlayerState.CHECKMATE) &&
+      !this.hasPlayerState(color, PlayerState.STALEMATE) &&
+      !this.isPlayerResignedOrTimedOut(color)
+    );
   }
 
   public isPlayerCheckMated(color: Color): boolean {
-    return this.getPlayerState(color) === PlayerState.CHECKMATE;
+    return this.hasPlayerState(color, PlayerState.CHECKMATE);
   }
 
   public isPlayerStalled(color: Color): boolean {
-    return this.ruleSet.isPlayerStalled(color, this);
+    return this.hasPlayerState(color, PlayerState.STALEMATE);
   }
 
   public isPlayerResignedOrTimedOut(color: Color): boolean {
-    const resignedOrTimedOut = 
-      this.getPlayerState(color) === PlayerState.RESIGNED ||
-      this.getPlayerState(color) === PlayerState.TIMED_OUT;
-    return resignedOrTimedOut;
+    return (
+      this.hasPlayerState(color, PlayerState.RESIGNED) ||
+      this.hasPlayerState(color, PlayerState.TIMED_OUT)
+    );
   }
 
   public getNextPlayerColor(previous: Color): Color {
-    let next = NEXT_PLAYER_COLOR.get(previous)!;
-    while(!this.isPlayerActive(next))
-      next = NEXT_PLAYER_COLOR.get(next)!;
+    return NEXT_PLAYER_COLOR.get(previous)!;
+  }
+
+  public getNextActivePlayerColor(previous: Color): Color {
+    let next = this.getNextPlayerColor(previous);
+    let checkedPlayers = 0;
+
+    while (!this.isPlayerActive(next)) {
+      checkedPlayers += 1;
+      if (checkedPlayers >= NEXT_PLAYER_COLOR.size) return next;
+
+      next = this.getNextPlayerColor(next);
+    }
+
     return next;
   }
 
@@ -165,6 +186,12 @@ export class Game {
 
   public resetMoveClock(): void {
     this.gameState.resetMoveClock();
+  }
+
+  public advanceCurrentPlayer(): void {
+    this.gameState.setCurrentPlayerColor(
+      this.getNextPlayerColor(this.getCurrentPlayerColor())
+    );
   }
 
   public setGameStatus(status: GameStatus): void {

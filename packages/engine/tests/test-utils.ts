@@ -4,6 +4,7 @@ import {
   Move,
   MoveGenerator,
   Piece,
+  Color,
   SquareCoords
 } from '../src';
 
@@ -15,6 +16,12 @@ export function createClassicGame(initialPosition: InitialPosition): Game {
 
 export function findMoveTo(game: Game, pieceId: string, to: number): Move | undefined {
   return game.getLegalMoves(pieceId).find(move => move.to === to);
+}
+
+export function advanceToPlayer(game: Game, color: Color): void {
+  while (game.getCurrentPlayerColor() !== color) {
+    game.advanceCurrentPlayer();
+  }
 }
 
 export function sortMoves(moves: SquareCoords[]): SquareCoords[] {

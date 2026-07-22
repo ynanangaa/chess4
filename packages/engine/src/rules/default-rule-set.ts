@@ -12,13 +12,21 @@ import { EN_PASSANT_SQUARES_IDS } from "./en-passant-squares-ids";
 import { RuleSet } from "./rule-set";
 
 export class DefaultRuleSet extends RuleSet {
+  private awardedMateStates = new Set<string>();
+  private awardedMoveHistoryLength = 0;
+  private processedHistoryLength = 0;
+
   constructor(
     moveGenerator: MoveGenerator
   ) { super(moveGenerator); }
 
   private awardPoints(_game: Game): void {
-    this.awardCapturePoints(_game);
-    this.awardMultiCheckPoints(_game);
+    if (_game.getHistory().length > this.awardedMoveHistoryLength) {
+      this.awardCapturePoints(_game);
+      this.awardMultiCheckPoints(_game);
+      this.awardedMoveHistoryLength = _game.getHistory().length;
+    }
+
     this.awardMatePoints(_game);
   }
 
@@ -89,10 +97,16 @@ export class DefaultRuleSet extends RuleSet {
 
   protected awardMatePoints(game: Game): void {
       for (const color of DefaultRuleSet.PLAYER_COLORS) {
-        if(game.isPlayerCheckMated(color)) {
+        if (
+          game.isPlayerCheckMated(color) &&
+          this.markMateAwardPending(color, PlayerState.CHECKMATE)
+        ) {
           this.awardCheckmatePoints(color, game);
         }
-        if(this.isPlayerStalled(color, game)) {
+        if (
+          game.isPlayerStalled(color) &&
+          this.markMateAwardPending(color, PlayerState.STALEMATE)
+        ) {
 
           if(!game.isPlayerResignedOrTimedOut(color))
             this.awardPlayerPoints(color, 20, game);
@@ -100,6 +114,15 @@ export class DefaultRuleSet extends RuleSet {
           this.awardStalematePoints(color, game);
         }
       }
+  }
+
+  private markMateAwardPending(color: Color, state: PlayerState): boolean {
+    const key = `${color}-${state}`;
+
+    if (this.awardedMateStates.has(key)) return false;
+
+    this.awardedMateStates.add(key);
+    return true;
   }
 
   private awardCheckmatePoints(
@@ -121,7 +144,7 @@ export class DefaultRuleSet extends RuleSet {
           return;
       }
 
-      let current = game.getNextPlayerColor(checkedColor)!;
+      let current = game.getNextActivePlayerColor(checkedColor)!;
 
       while (current !== checkedColor) {
           if (attackers.includes(current)) {
@@ -129,7 +152,7 @@ export class DefaultRuleSet extends RuleSet {
               return;
           }
 
-          current = game.getNextPlayerColor(current)!;
+          current = game.getNextActivePlayerColor(current)!;
       }
   }
 
@@ -391,19 +414,30 @@ export class DefaultRuleSet extends RuleSet {
     if (game.isOver()) return;
     
     const history = game.getHistory();
-    const lastMove = history[history.length - 1];
-    const piecePlayed = game.getBoard().getPiece(lastMove.pieceId)!;
-    if (!lastMove.capture && piecePlayed.type !== PieceType.PAWN) {
-      game.incrementMoveClock();
-    } else {
+    if (history.length > this.processedHistoryLength) {
+      const lastMove = history[history.length - 1];
+      const piecePlayed = game.getBoard().getPiece(lastMove.pieceId)!;
+
+      if (!lastMove.capture && piecePlayed.type !== PieceType.PAWN) {
+        game.incrementMoveClock();
+      } else {
         game.resetMoveClock();
+      }
+
+      this.processedHistoryLength = history.length;
     }
     
     const currentPlayerColor = game.getCurrentPlayerColor();
+    if (
+      game.hasPlayerState(currentPlayerColor, PlayerState.CHECKMATE) ||
+      game.hasPlayerState(currentPlayerColor, PlayerState.STALEMATE)
+    ) {
+      return;
+    }
 
     // Reset all active CHECK states before recomputing them.
     for (const color of DefaultRuleSet.PLAYER_COLORS) {
-      if (game.getPlayerState(color) === PlayerState.CHECK) {
+      if (game.hasPlayerState(color, PlayerState.CHECK)) {
         game.setPlayerState(color, PlayerState.NORMAL);
       }
     }
@@ -420,21 +454,13 @@ export class DefaultRuleSet extends RuleSet {
       game.setPlayerState(color, PlayerState.CHECK);
     }
 
-    if (
-      game.getPlayerState(currentPlayerColor) === PlayerState.CHECK &&
-      this.isPlayerMate(currentPlayerColor, game)
-    ) {
-      game.setPlayerState(currentPlayerColor, PlayerState.CHECKMATE);
-    }
+    if (!this.isPlayerMate(currentPlayerColor, game)) return;
 
-    if (
-      game.getPlayerState(currentPlayerColor) === PlayerState.NORMAL &&
-      this.isPlayerMate(currentPlayerColor, game)
-    ) {
+    if (checkedColors.includes(currentPlayerColor)) {
+      game.setPlayerState(currentPlayerColor, PlayerState.CHECKMATE);
+    } else {
       game.setPlayerState(currentPlayerColor, PlayerState.STALEMATE);
     }
-
-    return;
   }
 
   protected applyRulesPostMove(game: Game): void {
@@ -453,7 +479,7 @@ export class DefaultRuleSet extends RuleSet {
 
         if (game.isPlayerResignedOrTimedOut(color)) {
 
-            if (this.isPlayerStalled(color, game))
+            if (game.isPlayerStalled(color))
                 game.setPlayerInactive(color);
             else
                 game.setPlayerInactive(color, true);

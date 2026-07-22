@@ -8,7 +8,7 @@ import {
   PieceType,
   PlayerState
 } from '../../src';
-import { createClassicGame, findMoveTo } from '../test-utils';
+import { advanceToPlayer, createClassicGame, findMoveTo } from '../test-utils';
 
 describe('Game check detection', () => {
   test('records every king checked by a move', () => {
@@ -30,7 +30,7 @@ describe('Game check detection', () => {
     const checkingMove = findMoveTo(game, redRook.id, parseSquareId(7, 4));
 
     expect(checkingMove).toBeDefined();
-    expect(game.applyMove(checkingMove!)).toBe(true);
+    expect(game.advanceTurn(checkingMove!)).toBe(true);
 
     const history = game.getHistory();
 
@@ -64,8 +64,10 @@ describe('Game check detection', () => {
 
     const knightMove = findMoveTo(game, greenKnight.id, parseSquareId(3, 10));
 
+    advanceToPlayer(game, Color.GREEN);
+
     expect(knightMove).toBeDefined();
-    expect(game.applyMove(knightMove!)).toBe(true);
+    expect(game.advanceTurn(knightMove!)).toBe(true);
     expect(game.getGameState().getPlayerState(Color.RED)).toBe(PlayerState.CHECK);
 
     const history = game.getHistory();

@@ -12,7 +12,7 @@ import {
   PieceType,
   PlayerState
 } from '../../src';
-import { createClassicGame, findMoveTo } from '../test-utils';
+import { advanceToPlayer, createClassicGame, findMoveTo } from '../test-utils';
 
 describe('Game state transitions', () => {
   test('keeps all players normal until a checking move is applied', () => {
@@ -43,22 +43,22 @@ describe('Game state transitions', () => {
 
     const redMove = findMoveTo(game, redPawn.id, parseSquareId(3, 6));
     expect(redMove).toBeDefined();
-    expect(game.applyMove(redMove!)).toBe(true);
+    expect(game.advanceTurn(redMove!)).toBe(true);
     expectRunningNormalState(game);
 
     const blueMove = findMoveTo(game, bluePawn.id, parseSquareId(9, 4));
     expect(blueMove).toBeDefined();
-    expect(game.applyMove(blueMove!)).toBe(true);
+    expect(game.advanceTurn(blueMove!)).toBe(true);
     expectRunningNormalState(game);
 
     const yellowMove = findMoveTo(game, yellowPawn.id, parseSquareId(12, 9));
     expect(yellowMove).toBeDefined();
-    expect(game.applyMove(yellowMove!)).toBe(true);
+    expect(game.advanceTurn(yellowMove!)).toBe(true);
     expectRunningNormalState(game);
 
     const checkingMove = findMoveTo(game, greenRook.id, parseSquareId(1, 11));
     expect(checkingMove).toBeDefined();
-    expect(game.applyMove(checkingMove!)).toBe(true);
+    expect(game.advanceTurn(checkingMove!)).toBe(true);
 
     const state = game.getGameState();
 
@@ -93,8 +93,10 @@ describe('Game state transitions', () => {
 
     const queenMove = findMoveTo(game, greenQueen.id, parseSquareId(2, 7));
 
+    advanceToPlayer(game, Color.GREEN);
+
     expect(queenMove).toBeDefined();
-    expect(game.applyMove(queenMove!)).toBe(true);
+    expect(game.advanceTurn(queenMove!)).toBe(true);
     expect(game.getGameState().getPlayerState(Color.RED)).toBe(PlayerState.CHECKMATE);
     expect(game.getLegalMoves(redBishop.id)).toEqual([]);
     expect(game.getLegalMoves(redKing.id)).toEqual([]);
@@ -120,8 +122,10 @@ describe('Game state transitions', () => {
 
     const queenMove = findMoveTo(game, greenQueen.id, parseSquareId(2, 9));
 
+    advanceToPlayer(game, Color.GREEN);
+
     expect(queenMove).toBeDefined();
-    expect(game.applyMove(queenMove!)).toBe(true);
+    expect(game.advanceTurn(queenMove!)).toBe(true);
     expect(game.getLegalMoves(redKing.id)).toEqual([]);
     expect(game.getGameState().getPlayerState(Color.RED)).toBe(PlayerState.STALEMATE);
   });
@@ -162,8 +166,10 @@ describe('Game state transitions', () => {
     // BLUE delivers a theoretical checkmate.
     const queenMove = findMoveTo(game, blueQueen.id, parseSquareId(2, 7));
 
+    advanceToPlayer(game, Color.BLUE);
+
     expect(queenMove).toBeDefined();
-    expect(game.applyMove(queenMove!)).toBe(true);
+    expect(game.advanceTurn(queenMove!)).toBe(true);
 
     // RED remains in check until its next turn.
     expect(game.getGameState().getPlayerState(Color.RED)).toBe(PlayerState.CHECK);
@@ -172,7 +178,7 @@ describe('Game state transitions', () => {
     const yellowMove = findMoveTo(game, yellowKnight.id, parseSquareId(10, 10));
 
     expect(yellowMove).toBeDefined();
-    expect(game.applyMove(yellowMove!)).toBe(true);
+    expect(game.advanceTurn(yellowMove!)).toBe(true);
 
     expect(game.getGameState().getPlayerState(Color.RED)).toBe(PlayerState.CHECK);
 
@@ -180,7 +186,7 @@ describe('Game state transitions', () => {
     const greenMove = findMoveTo(game, greenRook.id, parseSquareId(2, 11));
 
     expect(greenMove).toBeDefined();
-    expect(game.applyMove(greenMove!)).toBe(true);
+    expect(game.advanceTurn(greenMove!)).toBe(true);
 
     // RED's turn begins, so the checkmate is now confirmed.
     expect(game.getGameState().getPlayerState(Color.RED)).toBe(PlayerState.CHECKMATE);
@@ -221,8 +227,10 @@ describe('Game state transitions', () => {
     // BLUE creates a theoretical stalemate.
     const queenMove = findMoveTo(game, blueQueen.id, parseSquareId(2, 9));
 
+    advanceToPlayer(game, Color.BLUE);
+
     expect(queenMove).toBeDefined();
-    expect(game.applyMove(queenMove!)).toBe(true);
+    expect(game.advanceTurn(queenMove!)).toBe(true);
 
     // RED is still considered active until its turn.
     expect(game.getGameState().getPlayerState(Color.RED)).toBe(PlayerState.NORMAL);
@@ -230,12 +238,12 @@ describe('Game state transitions', () => {
     const yellowMove = findMoveTo(game, yellowKnight.id, parseSquareId(10, 10));
 
     expect(yellowMove).toBeDefined();
-    expect(game.applyMove(yellowMove!)).toBe(true);
+    expect(game.advanceTurn(yellowMove!)).toBe(true);
 
     const greenMove = findMoveTo(game, greenRook.id, parseSquareId(12, 6));
 
     expect(greenMove).toBeDefined();
-    expect(game.applyMove(greenMove!)).toBe(true);
+    expect(game.advanceTurn(greenMove!)).toBe(true);
 
     // RED's turn begins, so the stalemate is now confirmed.
     expect(game.getGameState().getPlayerState(Color.RED)).toBe(PlayerState.STALEMATE);
@@ -281,8 +289,10 @@ describe('Game state transitions', () => {
     // BLUE delivers a theoretical checkmate.
     const queenMove = findMoveTo(game, blueQueen.id, parseSquareId(2, 7));
 
+    advanceToPlayer(game, Color.BLUE);
+
     expect(queenMove).toBeDefined();
-    expect(game.applyMove(queenMove!)).toBe(true);
+    expect(game.advanceTurn(queenMove!)).toBe(true);
 
     expect(game.getGameState().getPlayerState(Color.RED)).toBe(PlayerState.CHECK);
 
@@ -290,13 +300,13 @@ describe('Game state transitions', () => {
     const yellowMove = findMoveTo(game, yellowKnight.id, parseSquareId(2, 7));
 
     expect(yellowMove).toBeDefined();
-    expect(game.applyMove(yellowMove!)).toBe(true);
+    expect(game.advanceTurn(yellowMove!)).toBe(true);
 
     // GREEN plays a neutral move.
     const greenMove = findMoveTo(game, greenKing.id, parseSquareId(8, 14));
 
     expect(greenMove).toBeDefined();
-    expect(game.applyMove(greenMove!)).toBe(true);
+    expect(game.advanceTurn(greenMove!)).toBe(true);
 
     // RED is no longer checkmated when its turn begins.
     expect(game.getGameState().getPlayerState(Color.RED)).toBe(PlayerState.NORMAL);

@@ -8,7 +8,7 @@ import {
   PieceType,
   PlayerState
 } from '../../src';
-import { createClassicGame, findMoveTo } from '../test-utils';
+import { advanceToPlayer, createClassicGame, findMoveTo } from '../test-utils';
 
 describe('Game check responses', () => {
   test('allows interposition against a rook check', () => {
@@ -35,8 +35,10 @@ describe('Game check responses', () => {
 
     const greenRookMove = findMoveTo(game, greenRook.id, parseSquareId(1, 11));
 
+    advanceToPlayer(game, Color.GREEN);
+
     expect(greenRookMove).toBeDefined();
-    expect(game.applyMove(greenRookMove!)).toBe(true);
+    expect(game.advanceTurn(greenRookMove!)).toBe(true);
     expect(game.getGameState().getPlayerState(Color.RED)).toBe(PlayerState.CHECK);
 
     const bishopMoves = game.getLegalMoves(redBishop.id);
@@ -77,8 +79,10 @@ describe('Game check responses', () => {
 
     const greenKnightMove = findMoveTo(game, greenKnight.id, parseSquareId(3, 8));
 
+    advanceToPlayer(game, Color.GREEN);
+
     expect(greenKnightMove).toBeDefined();
-    expect(game.applyMove(greenKnightMove!)).toBe(true);
+    expect(game.advanceTurn(greenKnightMove!)).toBe(true);
     expect(game.getGameState().getPlayerState(Color.RED)).toBe(PlayerState.CHECK);
     expect(game.getLegalMoves(redBishop.id)).toEqual([]);
     expect(game.getLegalMoves(redKnight.id)).toContainEqual(
@@ -114,8 +118,10 @@ describe('Game check responses', () => {
 
     const bishopMove = findMoveTo(game, greenBishop.id, parseSquareId(3, 9));
 
+    advanceToPlayer(game, Color.GREEN);
+
     expect(bishopMove).toBeDefined();
-    expect(game.applyMove(bishopMove!)).toBe(true);
+    expect(game.advanceTurn(bishopMove!)).toBe(true);
     expect(game.getGameState().getPlayerState(Color.RED)).toBe(PlayerState.CHECK);
     expect(game.getLegalMoves(redKnight.id)).toEqual([]);
     expect(game.getLegalMoves(redKing.id).length).toBeGreaterThan(0);
@@ -141,8 +147,10 @@ describe('Game check responses', () => {
 
     const rookMove = findMoveTo(game, greenRook.id, parseSquareId(1, 9));
 
+    advanceToPlayer(game, Color.GREEN);
+
     expect(rookMove).toBeDefined();
-    expect(game.applyMove(rookMove!)).toBe(true);
+    expect(game.advanceTurn(rookMove!)).toBe(true);
     expect(game.getGameState().getPlayerState(Color.YELLOW)).toBe(PlayerState.CHECK);
 
     const kingMoves = game.getLegalMoves(yellowKing.id);
@@ -179,8 +187,10 @@ describe('Game check responses', () => {
 
     const rookMove = findMoveTo(game, greenRook.id, parseSquareId(2, 7));
 
+    advanceToPlayer(game, Color.GREEN);
+
     expect(rookMove).toBeDefined();
-    expect(game.applyMove(rookMove!)).toBe(true);
+    expect(game.advanceTurn(rookMove!)).toBe(true);
     expect(game.getGameState().getPlayerState(Color.RED)).toBe(PlayerState.CHECK);
     expect(game.getLegalMoves(redKing.id)).not.toContainEqual(
       expect.objectContaining({ to: parseSquareId(2, 7) })
