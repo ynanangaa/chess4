@@ -1,6 +1,7 @@
 import { describe, expect, test, beforeEach } from '@jest/globals';
 
-import { Board, Color, initializePieces, parseSquareId, Piece } from '../../src';
+import { Board, Color, parseSquareId, Piece } from '../../src';
+import { initializePieces } from "../../src/utils/utils";
 
 let board: Board;
 let redPieces: Piece[];

@@ -1,9 +1,6 @@
 import { describe, expect, test } from '@jest/globals';
 
 import {
-  buildDuplicatePiece,
-  buildKing,
-  buildQueen,
   Color,
   DefaultRuleSet,
   Game,
@@ -12,16 +9,17 @@ import {
   parseSquareId,
   PieceType
 } from '../../src';
+import { buildDuplicatePiece, buildKing, buildQueen } from "../../src/utils/utils";
 import { createClassicGame, findMoveTo } from '../test-utils';
 
-// Instance de RuleSet "sans état" utilisée pour appeler directement les
-// prédicats de nulle (isDrawByInsufficientMaterial / isDrawBy50MovesRule),
-// sans avoir à rejouer une partie complète.
+// "Stateless" RuleSet instance used to call the draw predicates directly
+// (isDrawByInsufficientMaterial / isDrawBy50MovesRule), without having to
+// replay a full game.
 function freshRuleSet(): DefaultRuleSet {
   return new DefaultRuleSet(new MoveGenerator());
 }
 
-// Joue un coup légal et vérifie qu'il a bien été appliqué.
+// Plays a legal move and verifies that it was applied successfully.
 function playMove(game: Game, pieceId: string, to: number): void {
   const move = findMoveTo(game, pieceId, to);
 
@@ -162,10 +160,10 @@ describe('Draw rules', () => {
     });
 
     test('king + two knights is still a draw when no king can break out of its corner', () => {
-      // Chaque roi est enfermé dans un coin de son bras du plateau par ses
-      // deux propres cavaliers, ne lui laissant qu'un seul coup légal.
-      // Aucun camp ne peut coopérer vers un mat : la position doit rester nulle
-      // même si un camp possède la paire de cavaliers.
+      // Each king is boxed into a corner of its arm of the board by its own
+      // two knights, leaving it only a single legal move.
+      // No side can cooperate toward a mate: the position must remain a draw
+      // even though one side holds the knight pair.
       const redKing = buildKing(Color.RED);
       const redKnightA = buildDuplicatePiece(Color.RED, PieceType.KNIGHT, true);
       const redKnightB = buildDuplicatePiece(Color.RED, PieceType.KNIGHT, false);
@@ -198,9 +196,9 @@ describe('Draw rules', () => {
     });
 
     test('king + two knights stops being a draw once one king keeps real mobility', () => {
-      // Même position, mais GREEN ne possède qu'un seul cavalier : son roi
-      // conserve deux cases libres. Un mat d'aide redevient théoriquement
-      // possible, la position ne doit donc plus être considérée comme nulle.
+      // Same position, but GREEN only has a single knight: its king retains
+      // two free squares. A helpmate becomes theoretically possible again,
+      // so the position must no longer be considered a draw.
       const redKing = buildKing(Color.RED);
       const redKnightA = buildDuplicatePiece(Color.RED, PieceType.KNIGHT, true);
       const redKnightB = buildDuplicatePiece(Color.RED, PieceType.KNIGHT, false);
@@ -280,9 +278,9 @@ describe('Draw rules', () => {
       const greenKing = buildKing(Color.GREEN);
       const greenQueen = buildQueen(Color.GREEN);
 
-      // Chaque camp garde sa dame : le matériel reste largement suffisant
-      // pour mater, afin que seule la règle des 50 coups soit responsable
-      // de la nulle observée ici.
+      // Each side keeps its queen: material remains clearly sufficient to
+      // mate, so that only the 50-move rule is responsible for the draw
+      // observed here.
       const game = createClassicGame([
         [redKing, redQueen, blueKing, blueQueen, yellowKing, yellowQueen, greenKing, greenQueen],
         [
@@ -299,8 +297,8 @@ describe('Draw rules', () => {
 
       expect(game.isOver()).toBe(false);
 
-      // Un simple coup de dame, sans capture ni coup de pion, fait passer
-      // le compteur à 200 et doit clore la partie.
+      // A simple queen move, with no capture or pawn move, pushes the
+      // counter to 200 and should end the game.
       playMove(game, redQueen.id, parseSquareId(2, 5));
 
       expect(game.isOver()).toBe(true);
@@ -323,9 +321,9 @@ describe('Draw rules', () => {
       const greenKing = buildKing(Color.GREEN);
       const greenQueen = buildQueen(Color.GREEN);
 
-      // Chaque camp conserve sa dame : le matériel reste largement suffisant
-      // pour mater de part et d'autre, afin d'isoler la règle de triple
-      // répétition des autres règles de nulle (matériel insuffisant, 50 coups).
+      // Each side keeps its queen: material remains clearly sufficient to
+      // mate on either side, in order to isolate the threefold repetition
+      // rule from the other draw rules (insufficient material, 50-move rule).
       const game = createClassicGame([
         [redKing, redQueen, blueKing, blueQueen, yellowKing, yellowQueen, greenKing, greenQueen],
         [
@@ -336,10 +334,10 @@ describe('Draw rules', () => {
         ]
       ]);
 
-      // Chaque dame effectue un aller-retour d'une case, sans jamais capturer
-      // ni mettre un roi en échec : un cycle complet (aller + retour, dans
-      // l'ordre RED, BLUE, YELLOW, GREEN) ramène exactement la position de
-      // départ, avec RED de nouveau au trait.
+      // Each queen performs a one-square round trip, never capturing or
+      // checking a king: one full cycle (there and back, in the order RED,
+      // BLUE, YELLOW, GREEN) brings the position back to exactly the
+      // starting position, with RED to move again.
       const forward: [string, number][] = [
         [redQueen.id, parseSquareId(2, 5)],
         [blueQueen.id, parseSquareId(5, 2)],
@@ -358,18 +356,18 @@ describe('Draw rules', () => {
         for (const [pieceId, to] of backward) playMove(game, pieceId, to);
       };
 
-      // 1er retour à la position de départ : occurrence n°2 dans l'absolu,
-      // mais la partie ne doit pas encore être nulle.
+      // 1st return to the starting position: occurrence #2 overall, but the
+      // game must not be a draw yet.
       playCycle();
       expect(game.isOver()).toBe(false);
 
-      // 2e retour à la position de départ : toujours pas de nulle.
+      // 2nd return to the starting position: still not a draw.
       playCycle();
       expect(game.isOver()).toBe(false);
 
-      // 3e retour à la position de départ : la position (plateau + camp au
-      // trait) s'est maintenant répétée trois fois, la nulle doit être
-      // déclarée et chaque camp actif reçoit les 10 points de la nulle.
+      // 3rd return to the starting position: the position (board + side to
+      // move) has now repeated three times, the draw must be declared and
+      // every active side receives the 10 draw points.
       playCycle();
       expect(game.isOver()).toBe(true);
       expect(game.getGameState().getStatus()).toBe(GameStatus.OVER);
@@ -380,10 +378,10 @@ describe('Draw rules', () => {
     });
 
     test('is not triggered by a mere repeated square when the side to move differs', () => {
-      // RED et YELLOW jouent la même case de dame l'un après l'autre, mais ce
-      // n'est jamais tout à fait la même position globale (les autres pièces
-      // ne sont pas revenues au même endroit) : cela ne doit jamais, à soi
-      // seul, déclencher la règle de triple répétition.
+      // RED and YELLOW play the same queen square one after another, but it's
+      // never quite the same overall position (the other pieces haven't
+      // returned to the same spot): this alone should never trigger the
+      // threefold repetition rule.
       const redKing = buildKing(Color.RED);
       const redQueen = buildQueen(Color.RED);
       const blueKing = buildKing(Color.BLUE);

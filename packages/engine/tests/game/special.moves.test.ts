@@ -1,14 +1,16 @@
 import { describe, expect, test } from '@jest/globals';
 
 import {
-  buildDuplicatePiece,
-  buildKing,
-  buildPawn,
-  buildQueen,
   Color,
   parseSquareId,
   PieceType
 } from '../../src';
+import { 
+  buildDuplicatePiece, 
+  buildKing, 
+  buildPawn,
+  buildQueen 
+} from "../../src/utils/utils";
 import { createClassicGame } from '../test-utils';
 
 describe('Game special moves', () => {

@@ -1,0 +1,18 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+  "entryPoints": ["src/index.ts"],
+  "out": "docs",
+  "tsconfig": "tsconfig.build.json",
+  "name": "chess4 Engine API",
+  "excludePrivate": true,
+  "excludeProtected": false,
+  "excludeInternal": true,
+  "includeVersion": true,
+  "cleanOutputDir": true,
+  "validation": {
+    "notExported": true,
+    "invalidLink": true
+  },
+  "githubPages": true,
+  "readme": "README.md"
+}

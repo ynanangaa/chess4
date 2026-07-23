@@ -1,6 +1,8 @@
 import { describe, expect, test } from '@jest/globals';
 
-import { Board, buildQueen, buildDuplicatePiece, parseSquareCoords, Color, PieceType, queenMoves } from '../../src';
+import { Board, parseSquareCoords, Color, PieceType } from '../../src';
+import { queenMoves } from '../../src/moves/queen-moves';
+import { buildDuplicatePiece, buildQueen } from "../../src/utils/utils";
 
 describe('Queen pseudo legal moves', () => {
   test('moves horizontally, vertically, and diagonally on an empty area', () => {

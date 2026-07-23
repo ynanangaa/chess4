@@ -1,13 +1,12 @@
 import { describe, expect, test } from '@jest/globals';
 
 import {
-  buildDuplicatePiece,
-  buildKing,
   Color,
   parseSquareId,
   PieceType,
   PlayerState
 } from '../../src';
+import { buildDuplicatePiece, buildKing } from "../../src/utils/utils";
 import { advanceToPlayer, createClassicGame, findMoveTo } from '../test-utils';
 
 describe('Game check detection', () => {

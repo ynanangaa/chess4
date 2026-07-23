@@ -1,6 +1,7 @@
 import { Board } from "../board";
 import { Color, Piece, SquareCoordsOffset } from "../types";
-import { parseSquareCoords, pushIfOccupantIsEnemy, toSquareId, translateSquareCoords } from "../utils";
+import { parseSquareCoords, toSquareId } from "../utils";
+import { pushIfOccupantIsEnemy, translateSquareCoords } from "../utils/utils";
 
 export function forwardDirection(color: Color): SquareCoordsOffset {
   switch (color) {

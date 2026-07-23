@@ -2,8 +2,6 @@ import { describe, expect, test } from '@jest/globals';
 
 import {
   Color,
-  createDuplicatePieceId,
-  createPieceId,
   DefaultRuleSet,
   Game,
   MoveGenerator,
@@ -11,6 +9,7 @@ import {
   PieceType,
   PlayerState
 } from '../../src';
+import { createDuplicatePieceId, createPieceId } from "../../src/utils/utils";
 import { findMoveTo } from '../test-utils';
 
 describe('Game integration - full 4-player game replay', () => {

@@ -1,6 +1,6 @@
 import { Board } from "../board";
 import { Piece, SquareCoordsOffset } from "../types";
-import { slidingMoves } from "../utils";
+import { slidingMoves } from "../utils/utils";
 
 const BISHOP_DIRECTION_OFFSETS: SquareCoordsOffset[] = [
   { rowDelta: -1, colDelta: -1 },

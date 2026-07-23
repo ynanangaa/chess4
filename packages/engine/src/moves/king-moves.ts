@@ -1,6 +1,7 @@
 import { Board } from "../board";
 import { Color, Piece, SquareCoordsOffset } from "../types";
-import { parseSquareCoords, pushIfEmptyOrEnemy, toSquareId, translateSquareCoords } from "../utils";
+import { parseSquareCoords, toSquareId } from "../utils";
+import { pushIfEmptyOrEnemy, translateSquareCoords } from "../utils/utils";
 
 const KING_OFFSETS: SquareCoordsOffset[] = [
   { rowDelta: -1, colDelta: -1 },

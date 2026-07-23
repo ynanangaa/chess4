@@ -1,6 +1,6 @@
 import { Board } from "../board";
 import { Color, Piece, SquareCoordsOffset } from "../types";
-import { slidingMoves } from "../utils";
+import { slidingMoves } from "../utils/utils";
 import { CastleSide } from "./move";
 
 const ROOK_DIRECTION_OFFSETS: SquareCoordsOffset[] = [

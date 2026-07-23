@@ -1,2 +1,2 @@
-export * from './game';
-export * from './game-state';
+export { Game } from './game';
+export { GameState } from './game-state';

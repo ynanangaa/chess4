@@ -1,12 +1,11 @@
 import { describe, expect, test } from '@jest/globals';
 
 import {
-  buildKing,
-  buildQueen,
   Color,
   parseSquareId,
   PlayerState
 } from '../../src';
+import { buildKing, buildQueen } from "../../src/utils/utils";
 import { createClassicGame } from '../test-utils';
 
 describe('Game turn advancement', () => {

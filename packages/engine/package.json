@@ -2,8 +2,13 @@
   "name": "@chess4/engine",
   "version": "1.0.0",
   "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
-    "test": "jest --config jest.config.js --runInBand"
+    "test": "jest --config jest.config.js --runInBand",
+    "docs": "typedoc"
+  },
+  "devDependencies": {
+    "typedoc": "^0.25.0"
   }
 }

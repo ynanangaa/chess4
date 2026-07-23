@@ -1,10 +1,6 @@
 import { describe, expect, test } from '@jest/globals';
 
 import {
-  buildDuplicatePiece,
-  buildKing,
-  buildPawn,
-  buildQueen,
   Color,
   Game,
   GameStatus,
@@ -12,6 +8,13 @@ import {
   PieceType,
   PlayerState
 } from '../../src';
+import { 
+  buildDuplicatePiece, 
+  buildKing, 
+  buildPawn,
+  buildQueen 
+} from "../../src/utils/utils";
+
 import { advanceToPlayer, createClassicGame, findMoveTo } from '../test-utils';
 
 describe('Game state transitions', () => {

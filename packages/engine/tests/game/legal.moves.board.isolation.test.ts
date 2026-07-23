@@ -1,13 +1,11 @@
 import { describe, expect, test } from '@jest/globals';
 
 import {
-  buildDuplicatePiece,
-  buildKing,
-  buildPawn,
   Color,
   parseSquareId,
   PieceType
 } from '../../src';
+import { buildDuplicatePiece, buildKing, buildPawn } from "../../src/utils/utils";
 import { createClassicGame } from '../test-utils';
 
 describe('getLegalMoves board isolation between candidate moves', () => {

@@ -1,15 +1,17 @@
 import { beforeEach, describe, expect, test } from '@jest/globals';
 
 import {
-    buildDuplicatePiece,
-    buildKing,
   Color,
-  createDuplicatePieceId,
-  createPieceId,
   Game,
   parseSquareId,
   PieceType,
 } from '../../src';
+import { 
+  buildDuplicatePiece, 
+  buildKing, 
+  createDuplicatePieceId, 
+  createPieceId 
+} from "../../src/utils/utils";
 import { advanceToPlayer, createClassicGame, eliminate, findMoveTo } from '../test-utils';
 
 describe('Claim victory', () => {

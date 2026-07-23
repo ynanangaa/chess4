@@ -1,6 +1,8 @@
 import { describe, expect, test } from '@jest/globals';
 
-import { Board, buildDuplicatePiece, buildPawn, parseSquareCoords, Color, PieceType, rookMoves } from '../../src';
+import { Board, parseSquareCoords, Color, PieceType } from '../../src';
+import { rookMoves } from '../../src/moves/rook-moves';
+import { buildDuplicatePiece, buildPawn } from "../../src/utils/utils";
 
 describe("Rook pseudo legal moves", () => {
 

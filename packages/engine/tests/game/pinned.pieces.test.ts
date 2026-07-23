@@ -1,13 +1,11 @@
 import { describe, expect, test } from '@jest/globals';
 
 import { 
-    buildDuplicatePiece, 
-    buildKing, 
-    buildPawn, 
     Color, 
     parseSquareId, 
     PieceType 
 } from '../../src';
+import { buildDuplicatePiece, buildKing, buildPawn } from "../../src/utils/utils";
 import { createClassicGame, findMoveTo } from '../test-utils';
 
 describe("Pinned pieces to attack's line on king", () => {
