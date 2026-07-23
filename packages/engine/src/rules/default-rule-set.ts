@@ -36,14 +36,6 @@ export class DefaultRuleSet extends RuleSet {
     }
   }
 
-  private awardPlayerPoints(
-      color: Color,
-      points: number,
-      game: Game
-  ): void {
-      game.incrementPlayerScore(color, points);
-  }
-
   protected awardCapturePoints (_game: Game): void {
 
     const history = _game.getHistory();
@@ -172,9 +164,7 @@ export class DefaultRuleSet extends RuleSet {
           }
 
           if (game.isPlayerActive(color)) {
-            if (this.getActivePlayers(game).length > 2)
-              this.awardPlayerPoints(color, 10, game);
-            else this.awardPlayerPoints(color, 20, game);
+            this.awardPlayerPoints(color, 10, game);
           }
       }
   }

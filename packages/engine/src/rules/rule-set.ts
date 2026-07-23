@@ -1,7 +1,7 @@
 import { Board } from "../board";
 import { Game } from "../game";
 import { enPassantCapturedPawnSquare, Move, MoveGenerator, rookCastleDirectionOffset } from "../moves";
-import { CapturedPiece, Color, Piece, PieceType, PlayerState } from "../types";
+import { CapturedPiece, Color, GameStatus, Piece, PieceType, PlayerState } from "../types";
 import { pickRandomElement } from "../utils";
 
 export abstract class RuleSet {
@@ -38,14 +38,10 @@ export abstract class RuleSet {
     return true;
   }
 
-  public advanceTurn(game: Game, move?: Move, resign: boolean = false): boolean {
+  public advanceTurn(game: Game, move?: Move): boolean {
     if (game.isOver()) return false;
 
     const currentPlayer = game.getCurrentPlayerColor();
-
-    if (resign) {
-      game.setPlayerState(currentPlayer, PlayerState.RESIGNED);
-    }
 
     if (game.isPlayerActive(currentPlayer)) {
       if (!move) return false;
@@ -65,14 +61,12 @@ export abstract class RuleSet {
       if (this.isPlayerMate(currentPlayer, game)) {
         game.incrementMoveClock();
       } else {
-        if (!resign || !this.claimVictory(currentPlayer, game)) {
-          const kingMove = this.chooseRandomKingMove(currentPlayer, game);
+        const kingMove = this.chooseRandomKingMove(currentPlayer, game);
 
-          if (kingMove) {
-            this.applyMove(kingMove, game);
-          } else {
-            game.incrementMoveClock();
-          }
+        if (kingMove) {
+          this.applyMove(kingMove, game);
+        } else {
+          game.incrementMoveClock();
         }
       }
     } else {
@@ -359,13 +353,22 @@ export abstract class RuleSet {
       return false;
 
     // End the game immediately by eliminating the claimant.
-    //game.setPlayerState(player, PlayerState.RESIGNED);
-    //game.setPlayerInactive(player, true);
+    game.resignPlayer(player);
 
     // The remaining player receives the standard 20 resignation points.
-    //this.awardPlayerPoints(otherPlayer, 20, game);
+    this.awardPlayerPoints(otherPlayer, 20, game);
+
+    this.endGame(game);
 
     return true;
+  }
+
+  protected awardPlayerPoints(
+      color: Color,
+      points: number,
+      game: Game
+  ): void {
+      game.incrementPlayerScore(color, points);
   }
   
   public isPlayerMate(player: Color, game: Game): boolean {

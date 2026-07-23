@@ -27,8 +27,9 @@ describe('Game turn advancement', () => {
       ]
     ]);
 
-    expect(game.advanceTurn(undefined, true)).toBe(true);
+    game.resignPlayer(Color.RED, true);
 
+    expect(game.advanceTurn()).toBe(true);
     expect(game.getCurrentPlayerColor()).toBe(Color.BLUE);
     expect(game.getHistory()).toHaveLength(1);
     expect(game.getBoard().getPositionOf(redKing.id)).not.toBe(redStart);
@@ -53,7 +54,9 @@ describe('Game turn advancement', () => {
       ]
     ]);
 
-    expect(game.advanceTurn(undefined, true)).toBe(true);
+    game.resignPlayer(Color.RED, true);
+
+    expect(game.advanceTurn()).toBe(true);
 
     expect(game.getPlayerStates(Color.RED)).toContain(PlayerState.RESIGNED);
     expect(game.getPlayerStates(Color.RED)).toContain(PlayerState.STALEMATE);

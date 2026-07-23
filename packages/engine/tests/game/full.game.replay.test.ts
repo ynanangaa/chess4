@@ -120,7 +120,8 @@ describe('Game integration - full 4-player game replay', () => {
     // ---------------------------------------------------------------------
     // RED resigns
     // ---------------------------------------------------------------------
-    expect(game.advanceTurn(undefined, true)).toBe(true);
+    game.resignPlayer(Color.RED, true);
+    expect(game.advanceTurn()).toBe(true);
 
     expect(
       game.getBoard().getPiece(createPieceId(Color.RED, PieceType.KING))!.active

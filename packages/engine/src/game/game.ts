@@ -58,8 +58,8 @@ export class Game {
     return this.ruleSet.applyMove(move, this);
   }
 
-  public advanceTurn(move?: Move, resign: boolean = false): boolean {
-    return this.ruleSet.advanceTurn(this, move, resign);
+  public advanceTurn(move?: Move): boolean {
+    return this.ruleSet.advanceTurn(this, move);
   }
 
   public claimVictory(player: Color): boolean {
@@ -196,6 +196,14 @@ export class Game {
 
   public resetMoveClock(): void {
     this.gameState.resetMoveClock();
+  }
+
+  public resignPlayer(
+    color: Color,
+    keepKingActive: boolean = false
+  ): void {
+    this.setPlayerState(color, PlayerState.RESIGNED);
+    this.setPlayerInactive(color, keepKingActive);
   }
 
   public advanceCurrentPlayer(): void {
