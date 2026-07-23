@@ -247,14 +247,14 @@ export class DefaultRuleSet extends RuleSet {
     const board = game.getBoard();
     const promotionMove = this.promotion(pawn, from);
     const doubleStepMove = this.getPawnDoubleStep(pawn, from, board);
-    const enPassantMove = this.getEnPassantMove(pawn, from, game);
+    const enPassantMoves = this.getEnPassantMoves(pawn, from, game);
 
     if (promotionMove) {
       moves = moves.map(move => promotionMove.to === move.to ? promotionMove : move);
     }
 
     if (doubleStepMove) moves.push(doubleStepMove);
-    if (enPassantMove) moves.push(enPassantMove);
+    if (enPassantMoves) moves.push(...enPassantMoves);
 
     return moves;
   }
@@ -347,18 +347,46 @@ export class DefaultRuleSet extends RuleSet {
     }
   }
 
-  public getEnPassantMove(pawn: Piece, from: number, game: Game): Move | undefined {
-    const gameHistory = game.getHistory();
-    if (gameHistory.length === 0) return undefined;
+  public getEnPassantMoves(
+    pawn: Piece,
+    from: number,
+    game: Game
+  ): Move[] {
+    if (!EN_PASSANT_SQUARES_IDS.has(from))
+      return [];
 
-    const lastMove = gameHistory[gameHistory.length - 1];
-    if (lastMove?.pawnSpecialMove !== "doublestep") return undefined;
-    if (!EN_PASSANT_SQUARES_IDS.has(from)) return undefined;
+    const moves: Move[] = [];
 
-    const enPassant = this.getEnPassantDestination(pawn, from, lastMove);
-    if (enPassant === undefined) return undefined;
+    const opponentMoves = this.getOpponentMovesSinceLastTurn(
+      pawn.color,
+      game
+    );
 
-    return this.moveGenerator.buildMove(pawn.id, from, enPassant, undefined, "e-p");
+    for (const move of opponentMoves) {
+      if (move.pawnSpecialMove !== "doublestep")
+        continue;
+
+      const destination = this.getEnPassantDestination(
+        pawn,
+        from,
+        move
+      );
+
+      if (destination === undefined)
+        continue;
+
+      moves.push(
+        this.moveGenerator.buildMove(
+          pawn.id,
+          from,
+          destination,
+          undefined,
+          "e-p"
+        )
+      );
+    }
+
+    return moves;
   }
 
   private getEnPassantDestination(
@@ -379,6 +407,27 @@ export class DefaultRuleSet extends RuleSet {
     }
 
     return pawn.color === Color.BLUE ? lastMove.to + 14 : lastMove.to - 14;
+  }
+
+  private getOpponentMovesSinceLastTurn(
+    player: Color,
+    game: Game
+  ): Move[] {
+    const history = game.getHistory();
+    const moves: Move[] = [];
+
+    for (let i = history.length - 1; i >= 0; i--) {
+      const move = history[i];
+      const moveColor = game.getBoard().getPiece(move?.pieceId)!.color;
+
+      if (moveColor === player) {
+        break;
+      }
+
+      moves.push(move);
+    }
+
+    return moves;
   }
 
   private canPromote(pawn: Piece, from: number): boolean {

@@ -190,6 +190,46 @@ export abstract class RuleSet {
     return pickRandomElement(kingMoves);
   }
 
+  public computePositionKey(game: Game): string {
+    const board = game.getBoard();
+    const currentPlayer = game.getCurrentPlayerColor();
+
+    const castlingRights = this.getCastleMoves(
+      currentPlayer, 
+      game
+    ).map(c => c.castle!);
+    const enPassantTargets: string[] = [];
+
+    for (const piece of board.getPiecesByColor(currentPlayer)) {
+      if (piece.type === PieceType.PAWN) {
+        const from = board.getPositionOf(piece.id)!;
+        const moves = this.getEnPassantMoves(piece, from, game);
+
+        if (!moves) continue;
+        
+        for (const move of moves) {
+          enPassantTargets.push(
+            move.pieceId + ',' + move.to.toString()
+          );
+        }
+      }
+    }
+
+    castlingRights.sort();
+    enPassantTargets.sort((a, b) => Number(a) - Number(b));
+
+    return [
+      board.toString(),
+      currentPlayer,
+      `castling=${castlingRights.length > 0
+        ? castlingRights.join(";")
+        : "none"}`,
+      `ep=${enPassantTargets.length > 0
+        ? enPassantTargets.join(";")
+        : "none"}`
+    ].join("\n");
+  }
+
   protected abstract applyRulesPostMove(game: Game): void;
 
   abstract endGame(game: Game): void;
@@ -209,11 +249,10 @@ export abstract class RuleSet {
     if (!selectedPiece) return [];
 
     const from = board.getPositionOf(pieceId)!;
-    const playerState = game.getPlayerState(selectedPiece.color);
 
     if (
-      playerState === PlayerState.CHECKMATE ||
-      playerState === PlayerState.STALEMATE
+      game.isPlayerCheckMated(selectedPiece.color) ||
+      game.isPlayerStalled(selectedPiece.color)
     ) {
       return [];
     }
@@ -273,7 +312,7 @@ export abstract class RuleSet {
   
   abstract getCastleMoves(player: Color, game: Game): Move[];
 
-  abstract getEnPassantMove(pawn: Piece, from: number, game: Game): Move | undefined;
+  abstract getEnPassantMoves(pawn: Piece, from: number, game: Game): Move[] | undefined;
 
   abstract promotion(pawn: Piece, from: number): Move | undefined;
 
@@ -326,5 +365,11 @@ export abstract class RuleSet {
     }
 
     return true;
+  }
+
+  public isDrawByTripleRepetition(game: Game): boolean {
+    return game.getPositionCount(
+      this.computePositionKey(game)
+    ) >= 3;
   }
 }

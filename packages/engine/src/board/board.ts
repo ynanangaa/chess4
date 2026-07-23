@@ -151,4 +151,15 @@ export class Board {
 
     return [pieces, positions];
   }
+
+  public toString(): string {
+    if (!this.piecePositions.size)
+      return "empty board";
+
+    return Array
+      .from(this.piecePositions.entries())
+      .sort(([id1], [id2]) => id1.localeCompare(id2))
+      .map(([pieceId, position]) => `${pieceId},${position}`)
+      .join(";");
+  }
 }

@@ -19,6 +19,7 @@ export class Game {
   private movedPieces = new Set<string>();
   private players: Player[];
   private capturedPieces = new Map<string, CapturedPiece>();
+  private positionCounts = new Map<string, number>();
 
   constructor(
     private ruleSet: RuleSet,
@@ -103,6 +104,10 @@ export class Game {
     return this.gameState.getPlayerStates(color);
   }
 
+  public getPositionCount(positionKey: string): number {
+    return this.positionCounts.get(positionKey) ?? 0;
+  }
+
   public getLegalMoves(pieceId: string): Move[] {
     return this.ruleSet.getLegalMoves(pieceId, this);
   }
@@ -128,6 +133,11 @@ export class Game {
       p => p.getColor() === color
     );
     this.players[playerIndex].incrementScore(points);
+  }
+
+  public incrementPositionCount(positionKey: string): void {
+    const n = this.positionCounts.get(positionKey)! ?? 0;
+    this.positionCounts.set(positionKey, n + 1);
   }
 
   public isOver(): boolean {
