@@ -28,6 +28,12 @@ export class DefaultRuleSet extends RuleSet {
     }
 
     this.awardMatePoints(_game);
+
+    if (this.isDraw(_game)) {
+      this.getActivePlayers(_game).forEach(player =>
+        this.awardPlayerPoints(player, 10, _game)
+      );
+    }
   }
 
   private awardPlayerPoints(
@@ -166,7 +172,9 @@ export class DefaultRuleSet extends RuleSet {
           }
 
           if (game.isPlayerActive(color)) {
+            if (this.getActivePlayers(game).length > 2)
               this.awardPlayerPoints(color, 10, game);
+            else this.awardPlayerPoints(color, 20, game);
           }
       }
   }
@@ -174,9 +182,10 @@ export class DefaultRuleSet extends RuleSet {
   public endGame(game: Game): void {
     const activePlayers = this.getActivePlayers(game);
 
-    if (activePlayers.length !== 1) {
+    if (activePlayers.length !== 1 && !this.isDraw(game)) {
       return;
     }
+
 
     game.setGameStatus(GameStatus.OVER);
   }
@@ -539,7 +548,7 @@ export class DefaultRuleSet extends RuleSet {
     }
   }
 
-  public isInsufficientMaterial(game: Game): boolean {
+  public isDrawByInsufficientMaterial(game: Game): boolean {
     const remainingPieces = new Map<Color, Piece[]>([
       [Color.RED, []], [Color.BLUE, []],
       [Color.YELLOW, []], [Color.GREEN, []]
@@ -631,10 +640,10 @@ export class DefaultRuleSet extends RuleSet {
     // still has enough legal moves to cooperate unintentionally.
     const kingMoveCounts = Array.from(remainingKingsMovesLength.values());
 
-    return kingMoveCounts.some(moveCount => moveCount >= 2);
+    return kingMoveCounts.every(moveCount => moveCount < 2);
   }
 
-  public isGameDrawBy50MovesRule(game: Game): boolean {
+  public isDrawBy50MovesRule(game: Game): boolean {
     return game.getMoveClock() >= 200;
   }
 }

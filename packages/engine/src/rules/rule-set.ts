@@ -52,6 +52,9 @@ export abstract class RuleSet {
 
       const movedPiece = game.getBoard().getPiece(move.pieceId);
       if (!movedPiece || movedPiece.color !== currentPlayer) return false;
+      game.incrementPositionCount(
+        this.computePositionKey(game)
+      );
       if (!this.applyMove(move, game)) return false;
 
       game.advanceCurrentPlayer();
@@ -62,12 +65,14 @@ export abstract class RuleSet {
       if (this.isPlayerMate(currentPlayer, game)) {
         game.incrementMoveClock();
       } else {
-        const kingMove = this.chooseRandomKingMove(currentPlayer, game);
+        if (!resign || !this.claimVictory(currentPlayer, game)) {
+          const kingMove = this.chooseRandomKingMove(currentPlayer, game);
 
-        if (kingMove) {
-          this.applyMove(kingMove, game);
-        } else {
-          game.incrementMoveClock();
+          if (kingMove) {
+            this.applyMove(kingMove, game);
+          } else {
+            game.incrementMoveClock();
+          }
         }
       }
     } else {
@@ -190,6 +195,13 @@ export abstract class RuleSet {
     return pickRandomElement(kingMoves);
   }
 
+  protected isDraw(game: Game): boolean {
+    return (this.isDrawByTripleRepetition(game) || 
+      this.isDrawBy50MovesRule(game) ||
+      this.isDrawByInsufficientMaterial(game)
+    )
+  }
+
   public computePositionKey(game: Game): string {
     const board = game.getBoard();
     const currentPlayer = game.getCurrentPlayerColor();
@@ -206,7 +218,7 @@ export abstract class RuleSet {
         const moves = this.getEnPassantMoves(piece, from, game);
 
         if (!moves) continue;
-        
+
         for (const move of moves) {
           enPassantTargets.push(
             move.pieceId + ',' + move.to.toString()
@@ -318,7 +330,9 @@ export abstract class RuleSet {
 
   abstract updateGameState(game: Game): void;
 
-  abstract isInsufficientMaterial(game: Game): boolean;
+  abstract isDrawBy50MovesRule(game: Game): boolean;
+
+  abstract isDrawByInsufficientMaterial(game: Game): boolean;
   
   protected getActivePlayers(game: Game): Color[] {
     return RuleSet.PLAYER_COLORS.filter(color =>
