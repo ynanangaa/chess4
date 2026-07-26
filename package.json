@@ -19,7 +19,10 @@
   "type": "commonjs",
   "main": "dist/index.js",
   "scripts": {
-    "test:engine": "npm --workspace @chess4/engine test"
+    "test:engine": "npm --workspace @chess4/engine test",
+    "build:engine": "npm --workspace @chess4/engine run build",
+    "dev:frontend": "npm --workspace @chess4/frontend run dev",
+    "build:frontend": "npm --workspace @chess4/frontend run build"
   },
   "devDependencies": {
     "@types/jest": "^29.5.14",

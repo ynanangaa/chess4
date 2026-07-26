@@ -9,6 +9,6 @@
     "docs": "typedoc"
   },
   "devDependencies": {
-    "typedoc": "^0.25.0"
+    "typedoc": "^0.28.20"
   }
 }
