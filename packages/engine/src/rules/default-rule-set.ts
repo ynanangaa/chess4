@@ -16,7 +16,7 @@ import { RuleSet } from "./rule-set";
  *
  * ### Scoring summary
  * - **Capture**: the capturing player receives the captured piece's
- *   standard point value (pawn=1, knight/bishop=3, rook=5, queen=9; the
+ *   standard point value (pawn=1, knight=3, bishop/rook=5, queen=9; the
  *   king has no point value).
  * - **Multi-check** (a single move that simultaneously checks two or more
  *   opposing kings):
@@ -661,7 +661,12 @@ export class DefaultRuleSet extends RuleSet {
 
     for (let i = history.length - 1; i >= 0; i--) {
       const move = history[i];
-      const moveColor = game.getBoard().getPiece(move?.pieceId)!.color;
+      
+      // Look up the piece on either the active board OR the captured registry
+      const piece = game.getBoard().getPiece(move.pieceId) 
+        ?? game.getCapturedPiece(move.pieceId);
+        
+      const moveColor = piece!.color;
 
       if (moveColor === player) {
         break;
