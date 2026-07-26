@@ -3,6 +3,13 @@ import { Color, PieceType } from '../types';
 import { initializePieces, validBoardSquares } from '../utils/utils';
 
 /**
+ * The set of valid square ids for the four-player board shape. Computed
+ * once and shared by every `Board` instance, since the board shape never
+ * changes.
+ */
+const VALID_SQUARES: ReadonlySet<number> = validBoardSquares();
+
+/**
  * Represents the state of a four-player chess board: which pieces exist,
  * where they are located, and which squares are occupied.
  *
@@ -30,7 +37,7 @@ export class Board {
   private occupiedSquares: Map<number, string> = new Map();
 
   /** Set of square ids that are valid for the four-player board shape. */
-  private validSquares: Set<number> = validBoardSquares();
+  private validSquares: ReadonlySet<number> = VALID_SQUARES;
 
   /**
    * Creates a new board.

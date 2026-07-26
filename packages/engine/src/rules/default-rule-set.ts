@@ -82,8 +82,16 @@ export class DefaultRuleSet extends RuleSet {
    * current game state: capture and multi-check bonuses for the latest
    * move (each processed at most once), mate/stalemate bonuses (each
    * idempotent per color/state), and draw bonuses.
+   *
+   * @param _game - The game to award points on.
+   * @param isDraw - Whether the current position has just been determined
+   * to be a draw, precomputed by the caller (see
+   * {@link DefaultRuleSet.applyRulesPostMove}) to avoid evaluating
+   * {@link RuleSet.isDraw} — which includes the relatively expensive
+   * {@link DefaultRuleSet.isDrawByInsufficientMaterial} check — more than
+   * once per post-move pass.
    */
-  private awardPoints(_game: Game): void {
+  private awardPoints(_game: Game, isDraw: boolean): void {
     if (_game.getHistory().length > this.awardedMoveHistoryLength) {
       this.awardCapturePoints(_game);
       this.awardMultiCheckPoints(_game);
@@ -92,7 +100,7 @@ export class DefaultRuleSet extends RuleSet {
 
     this.awardMatePoints(_game);
 
-    if (this.isDraw(_game)) {
+    if (isDraw) {
       this.getActivePlayers(_game).forEach(player =>
         this.awardPlayerPoints(player, 10, _game)
       );
@@ -284,12 +292,21 @@ export class DefaultRuleSet extends RuleSet {
    * otherwise — the game continues.
    */
   public endGame(game: Game): void {
+    this.endGameForDrawStatus(game, this.isDraw(game));
+  }
+
+  /**
+   * Internal variant of {@link DefaultRuleSet.endGame} that accepts an
+   * already-computed draw status, avoiding a redundant
+   * {@link RuleSet.isDraw} evaluation when the caller — currently only
+   * {@link DefaultRuleSet.applyRulesPostMove} — has just computed it.
+   */
+  private endGameForDrawStatus(game: Game, isDraw: boolean): void {
     const activePlayers = this.getActivePlayers(game);
 
-    if (activePlayers.length !== 1 && !this.isDraw(game)) {
+    if (activePlayers.length !== 1 && !isDraw) {
       return;
     }
-
 
     game.setGameStatus(GameStatus.OVER);
   }
@@ -365,6 +382,34 @@ export class DefaultRuleSet extends RuleSet {
     }
 
     return checkInfos;
+  }
+
+  /**
+   * Determines whether `kingColor`'s king is currently in check, by
+   * scanning every opposing color's active pieces and returning as soon as
+   * one is found attacking the king's square.
+   *
+   * Returns `false` if the king is missing from the board or inactive —
+   * an inactive king cannot be "in check."
+   */
+  protected isKingInCheck(board: Board, kingColor: Color): boolean {
+    const kingPos = board.getPositionOf(`K-${kingColor}`);
+    if (kingPos === undefined) return false;
+
+    const king = board.getPieceAt(kingPos);
+    if (!king || !king.active) return false;
+
+    for (const color of DefaultRuleSet.PLAYER_COLORS) {
+      if (color === kingColor) continue;
+
+      for (const piece of board.getPiecesByColor(color)) {
+        if (this.moveGenerator.generateMovesForPiece(piece, board).includes(kingPos)) {
+          return true;
+        }
+      }
+    }
+
+    return false;
   }
 
   /**
@@ -750,16 +795,23 @@ export class DefaultRuleSet extends RuleSet {
    * recomputes game/check state, awards all applicable points, syncs
    * every player's piece-active status with their current player state,
    * and checks whether the game should end.
+   *
+   * The draw status is computed once here and reused by both
+   * {@link DefaultRuleSet.awardPoints} and game-ending evaluation, rather
+   * than each independently recomputing it.
    */
   protected applyRulesPostMove(game: Game): void {
     this.updateGameState(game);
-    this.awardPoints(game);
+
+    const isDraw = this.isDraw(game);
+
+    this.awardPoints(game, isDraw);
 
     for (const color of DefaultRuleSet.PLAYER_COLORS) {
       this.updatePlayerPiecesStatus(color, game);
     }
 
-    this.endGame(game);
+    this.endGameForDrawStatus(game, isDraw);
   }
 
   /**

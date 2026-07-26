@@ -1,4 +1,3 @@
-```markdown
 # @chess4/engine
 
 A rules engine for **four-player chess**, played on a 14×14 cross-shaped
@@ -37,6 +36,8 @@ for a future team-based variant and is not yet functionally distinct from
   shuffling to keep the game consistent until such a player is fully
   eliminated.
 - An early-victory claim mechanic for decisive two-player endgames.
+- Fully customizable starting positions and piece sets — you are not
+  required to use the standard setup.
 
 ## Installation
 
@@ -64,6 +65,43 @@ addressed internally as flat integer ids rather than row/column pairs,
 for performance; use `parseSquareCoords` / `toSquareId` from the package
 to convert between the two when rendering a board.
 
+## Piece identification (standard starting position)
+
+By default (i.e. when constructing `Board` or `Game` without arguments),
+the engine sets up a standard starting position and assigns each piece a
+predictable id following this convention:
+
+| Piece | Id format | Example |
+|---|---|---|
+| Pawn | `{color}-{n}` (n = 1–8) | `red-1`, `blue-8` |
+| Rook | `R-{color}-{side}` | `R-red-kingside`, `R-green-queenside` |
+| Bishop | `B-{color}-{side}` | `B-yellow-kingside` |
+| Knight | `N-{color}-{side}` | `N-blue-queenside` |
+| Queen | `Q-{color}` | `Q-red` |
+| King | `K-{color}` | `K-green` |
+
+`{color}` is one of `red`, `blue`, `yellow`, `green`; `{side}` is one of
+`kingside`, `queenside`.
+
+These ids are what you pass to methods like `Game.getLegalMoves(pieceId)`
+or look up via `Board.getPiece(pieceId)` when using the standard setup.
+
+### Custom setups
+
+`Board` and `Game` both accept an optional `[Piece[], squareIds[]]` tuple,
+letting you supply your own pieces, ids, and starting squares instead of
+the standard setup — useful for custom variants, puzzles, or test
+scenarios.
+
+> ⚠️ **Reserved conventions.** The bundled `RuleSet` implementations
+> (`DefaultRuleSet`, `TeamRuleSet`) look up certain pieces by their
+> conventional id — specifically each player's king (`` `K-${color}` ``)
+> and their castling rooks (`` `R-${color}-kingside` `` /
+> `` `R-${color}-queenside` ``). If your custom setup includes a king or
+> castling-eligible rooks, keep these id formats so that check detection,
+> elimination, and castling continue to work correctly. Every other piece
+> (pawns, bishops, knights, non-castling pieces) can use any id you like.
+
 ## Quick start
 
 ```ts
@@ -71,7 +109,7 @@ import { Game, DefaultRuleSet, MoveGenerator } from "@chess4/engine";
 
 const game = new Game(new DefaultRuleSet(new MoveGenerator()));
 
-// Inspect legal moves for a piece.
+// Inspect legal moves for a piece (using the standard id convention above).
 const moves = game.getLegalMoves("red-1");
 
 // Play a move and advance the turn.
@@ -110,4 +148,3 @@ npm run docs    # Generate TypeDoc documentation into docs/
 ## License
 
 _TBD_
-```

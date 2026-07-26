@@ -39,6 +39,84 @@ export abstract class RuleSet {
   ) {}
 
   /**
+   * Advances the game by a single player's turn, handling three distinct
+   * situations depending on the current player's status:
+   *
+   * 1. **Active player**: `move` must be provided and must belong to a
+   *    piece owned by the current player. The current position is
+   *    recorded for repetition-detection purposes (counted *before* the
+   *    move is applied), the move is applied via {@link RuleSet.applyMove},
+   *    and the turn advances to the **next** player *before*
+   *    {@link RuleSet.applyRulesPostMove} runs — so that post-move rule
+   *    processing (e.g. checkmate/stalemate detection) evaluates the
+   *    player who is now to move, matching standard chess semantics
+   *    ("is the side to move currently mated?").
+   * 2. **Resigned or timed-out player**: no `move` is expected from the
+   *    caller. A random legal king move is chosen and applied on their
+   *    behalf via {@link RuleSet.applyMove} if one exists; otherwise only
+   *    the move clock is incremented.
+   * 3. **Otherwise inactive player** (e.g. eliminated by other means):
+   *    only the move clock is incremented; no move is played.
+   *
+   * For both (2) and (3), {@link RuleSet.applyRulesPostMove} runs *before*
+   * the turn advances, so that mate/stalemate detection is evaluated for
+   * this same player — allowing a future call to recognize once they've
+   * become fully mated and stop attempting to auto-play a king move.
+   *
+   * @remarks
+   * Branch (2) relies on the king being the only piece worth considering
+   * for the auto-play fallback — which in turn relies on the active
+   * {@link RuleSet} implementation having already deactivated a
+   * resigned/timed-out player's non-king pieces on a previous turn (see
+   * e.g. `DefaultRuleSet.updatePlayerPiecesStatus`). A custom `RuleSet`
+   * that does not enforce this invariant should not rely on this
+   * branch's fallback being meaningful.
+   *
+   * @param game - The game to advance.
+   * @param move - The move to play, required only when the current player
+   * is active.
+   * @returns `true` if the turn was successfully advanced; `false` if the
+   * game is already over, or (for an active player) if `move` is missing,
+   * refers to a piece not owned by the current player, or fails to apply.
+   */
+  public advanceTurn(game: Game, move?: Move): boolean {
+    if (game.isOver()) return false;
+
+    const currentPlayer = game.getCurrentPlayerColor();
+
+    if (game.isPlayerActive(currentPlayer)) {
+      if (!move) return false;
+
+      const movedPiece = game.getBoard().getPiece(move.pieceId);
+      if (!movedPiece || movedPiece.color !== currentPlayer) return false;
+      game.incrementPositionCount(
+        this.computePositionKey(game)
+      );
+      if (!this.applyMove(move, game)) return false;
+
+      game.advanceCurrentPlayer();
+      this.applyRulesPostMove(game);
+
+      return true;
+    } else if (game.isPlayerResignedOrTimedOut(currentPlayer)) {
+      const kingMove = this.chooseRandomKingMove(currentPlayer, game);
+
+      if (kingMove) {
+        this.applyMove(kingMove, game);
+      } else {
+        game.incrementMoveClock();
+      }
+    } else {
+      game.incrementMoveClock();
+    }
+
+    this.applyRulesPostMove(game);
+    game.advanceCurrentPlayer();
+
+    return true;
+  }
+
+  /**
    * Applies a move to the game's board and records its effects (captured
    * piece, moved-piece tracking for castling-rights purposes, and
    * post-move check annotations) into the game's history.
@@ -74,81 +152,6 @@ export abstract class RuleSet {
         game.addMovedPiece(`R-${color}-${move.castle}`);
     }
     this.recordMove(appliedMove, movedPiece.color, game);
-
-    return true;
-  }
-
-  /**
-   * Advances the game by a single player's turn, handling three distinct
-   * situations depending on the current player's status:
-   *
-   * 1. **Active player**: `move` must be provided and must belong to a
-   *    piece owned by the current player. The current position is
-   *    recorded for repetition-detection purposes (counted *before* the
-   *    move is applied), the move is applied via {@link RuleSet.applyMove},
-   *    and the turn advances to the **next** player *before*
-   *    {@link RuleSet.applyRulesPostMove} runs — so that post-move rule
-   *    processing (e.g. checkmate/stalemate detection) evaluates the
-   *    player who is now to move, matching standard chess semantics
-   *    ("is the side to move currently mated?").
-   * 2. **Resigned or timed-out player**: no `move` is expected from the
-   *    caller. If the player has no legal moves at all
-   *    ({@link RuleSet.isPlayerMate}), only the move clock is incremented.
-   *    Otherwise, a random legal king move is chosen and applied on their
-   *    behalf via {@link RuleSet.applyMove}. In either case,
-   *    {@link RuleSet.applyRulesPostMove} runs *before* the turn advances,
-   *    so that mate/stalemate detection is evaluated for this same
-   *    resigned/timed-out player — allowing a future call to this method
-   *    to recognize once they've become fully mated and stop wasting
-   *    random king moves on them.
-   * 3. **Otherwise inactive player** (e.g. eliminated by other means):
-   *    only the move clock is incremented; no move is played. As with (2),
-   *    post-move rules run before the turn advances.
-   *
-   * @param game - The game to advance.
-   * @param move - The move to play, required only when the current player
-   * is active.
-   * @returns `true` if the turn was successfully advanced; `false` if the
-   * game is already over, or (for an active player) if `move` is missing,
-   * refers to a piece not owned by the current player, or fails to apply.
-   */
-  public advanceTurn(game: Game, move?: Move): boolean {
-    if (game.isOver()) return false;
-
-    const currentPlayer = game.getCurrentPlayerColor();
-
-    if (game.isPlayerActive(currentPlayer)) {
-      if (!move) return false;
-
-      const movedPiece = game.getBoard().getPiece(move.pieceId);
-      if (!movedPiece || movedPiece.color !== currentPlayer) return false;
-      game.incrementPositionCount(
-        this.computePositionKey(game)
-      );
-      if (!this.applyMove(move, game)) return false;
-
-      game.advanceCurrentPlayer();
-      this.applyRulesPostMove(game);
-
-      return true;
-    } else if (game.isPlayerResignedOrTimedOut(currentPlayer)) {
-      if (this.isPlayerMate(currentPlayer, game)) {
-        game.incrementMoveClock();
-      } else {
-        const kingMove = this.chooseRandomKingMove(currentPlayer, game);
-
-        if (kingMove) {
-          this.applyMove(kingMove, game);
-        } else {
-          game.incrementMoveClock();
-        }
-      }
-    } else {
-      game.incrementMoveClock();
-    }
-
-    this.applyRulesPostMove(game);
-    game.advanceCurrentPlayer();
 
     return true;
   }
@@ -454,7 +457,8 @@ export abstract class RuleSet {
   
   /**
    * Computes all fully legal moves for a given piece — i.e. pseudo-legal
-   * moves (from {@link MoveGenerator}), expanded with any applicable
+   * moves (from {@link MoveGenerator}), with any destination occupied by
+   * a still-active enemy king excluded, expanded with any applicable
    * special pawn moves or castling moves, then filtered to exclude any
    * move that would leave the mover's own king in check.
    *
@@ -470,8 +474,6 @@ export abstract class RuleSet {
     const selectedPiece = board.getPiece(pieceId);
     if (!selectedPiece) return [];
 
-    const from = board.getPositionOf(pieceId)!;
-
     if (
       game.isPlayerCheckMated(selectedPiece.color) ||
       game.isPlayerStalled(selectedPiece.color)
@@ -479,60 +481,104 @@ export abstract class RuleSet {
       return [];
     }
 
-    const pseudoLegalMoves = this.moveGenerator.generateMovesForPiece(selectedPiece, board);
+    const candidates = this.generateCandidateMoves(selectedPiece, board, game);
+
+    return candidates.filter(move =>
+      this.isMoveLegal(move, selectedPiece.color, board)
+    );
+  }
+
+  /**
+   * Generates the full candidate move list for a piece: pseudo-legal
+   * destinations (excluding any still-active enemy king's square),
+   * expanded with special pawn moves or castling as applicable — but
+   * **not yet filtered for check-legality**.
+   *
+   * Factored out so that {@link RuleSet.getLegalMoves} and
+   * {@link RuleSet.hasLegalMove} share the exact same candidate-generation
+   * logic and can never diverge.
+   */
+  private generateCandidateMoves(
+    piece: Piece,
+    board: Board,
+    game: Game
+  ): Move[] {
+    const from = board.getPositionOf(piece.id)!;
+
+    const pseudoLegalMoves = this.moveGenerator
+      .generateMovesForPiece(piece, board)
+      .filter(to => !this.isActiveEnemyKingSquare(to, piece.color, board));
+
     if (pseudoLegalMoves.length === 0) return [];
 
     let moves = pseudoLegalMoves.map(to =>
-      this.moveGenerator.buildMove(pieceId, from, to)
+      this.moveGenerator.buildMove(piece.id, from, to)
     );
 
-    if (selectedPiece.type === PieceType.PAWN) {
-      moves = this.withPawnSpecialMoves(selectedPiece, from, game, moves);
+    if (piece.type === PieceType.PAWN) {
+      moves = this.withPawnSpecialMoves(piece, from, game, moves);
     }
 
-    if (selectedPiece.type === PieceType.KING) {
-      moves.push(...this.getCastleMoves(selectedPiece.color, game));
+    if (piece.type === PieceType.KING) {
+      moves.push(...this.getCastleMoves(piece.color, game));
     }
-
-    moves = moves.filter(move =>
-      this.isMoveLegal(move, selectedPiece.color, board)
-    );
 
     return moves;
   }
 
   /**
-   * Determines whether a candidate move is legal for `color` — i.e.
-   * whether applying it would leave `color`'s own king in check by
-   * **any** opposing piece.
+   * Checks whether a square is occupied by an opponent's king that is
+   * still active — i.e. a king that must not be a legal capture target.
    *
-   * The move is tried on a **fresh clone** of `board` for each call, so
-   * that evaluating one candidate never leaks side effects (captures,
-   * piece removal, etc.) into the evaluation of another candidate. All
-   * four colors are passed as potential attackers to
-   * {@link RuleSet.getActiveChecks} so that checks delivered by any
-   * player are accounted for.
+   * @param squareId - The square to check.
+   * @param color - The color of the piece considering this destination
+   * (used to determine which kings count as "enemy").
+   * @param board - The board to evaluate against.
    */
-  private isMoveLegal(
-      move: Move,
-      color: Color,
-      board: Board
+  private isActiveEnemyKingSquare(
+    squareId: number,
+    color: Color,
+    board: Board
   ): boolean {
-    // Each candidate move must be tried on its own fresh clone of the
-    // original position. Reusing a single mutated clone across multiple
-    // candidate moves (as this used to do) leaks the side effects of one
-    // candidate (captures, piece removals, etc.) into the legality check
-    // of the next candidate, producing false positives/negatives.
+    const occupant = board.getPieceAt(squareId);
+
+    return (
+      occupant !== undefined &&
+      occupant.type === PieceType.KING &&
+      occupant.color !== color &&
+      occupant.active
+    );
+  }
+
+  /**
+   * Determines whether `kingColor`'s king is currently in check by any
+   * opposing piece.
+   *
+   * This is a narrower, faster alternative to {@link RuleSet.getActiveChecks}
+   * for callers that only need a yes/no answer for a single king — notably
+   * {@link RuleSet.isMoveLegal}, which calls this once per candidate move
+   * being tested and benefits from an early-exit check rather than a full
+   * attacker/target map.
+   *
+   * @param board - The board to evaluate.
+   * @param kingColor - The color whose king should be checked.
+   */
+  protected abstract isKingInCheck(board: Board, kingColor: Color): boolean;
+
+  /**
+   * Determines whether a candidate move is legal for `color` — i.e.
+   * whether applying it would leave `color`'s own king in check by any
+   * opposing piece.
+   *
+   * The move is tried on a fresh clone of `board` for each call, so that
+   * evaluating one candidate never leaks side effects into the next.
+   */
+  private isMoveLegal(move: Move, color: Color, board: Board): boolean {
     const boardClone = board.clone();
 
     this.applyMoveOnBoard(move, boardClone);
 
-    const checks = this.getActiveChecks(
-        boardClone,
-        RuleSet.PLAYER_COLORS
-    );
-
-    return ![...checks.values()].some(colors => colors.includes(color));
+    return !this.isKingInCheck(boardClone, color);
   }
 
   /**
@@ -685,6 +731,11 @@ export abstract class RuleSet {
    * Combine with {@link RuleSet.getCheckInfos} to determine which
    * condition applies.
    *
+   * Stops at the first piece found to have a legal move (and, within
+   * that piece, at the first legal move found — see
+   * {@link RuleSet.hasLegalMove}), rather than exhaustively computing
+   * every piece's complete legal-move list.
+   *
    * @param player - The color to evaluate.
    * @param game - The game to evaluate.
    */
@@ -692,13 +743,41 @@ export abstract class RuleSet {
     const board = game.getBoard();
     const pieces = board.getPiecesByColor(player);
 
-    for (const piece of pieces) {
-      if (this.getLegalMoves(piece.id, game).length > 0) {
-        return false;
-      }
+    return !pieces.some(piece => this.hasLegalMove(piece.id, game));
+  }
+
+  /**
+   * Determines whether a piece currently has at least one legal move,
+   * without computing the full list of legal moves.
+   *
+   * Reuses the exact same candidate-generation pipeline as
+   * {@link RuleSet.getLegalMoves} (via {@link RuleSet.generateCandidateMoves}),
+   * but stops as soon as a single legal candidate is found via
+   * `Array.prototype.some`, rather than evaluating and collecting every
+   * candidate. Used by {@link RuleSet.isPlayerMate} to avoid the cost of
+   * fully enumerating legal moves for every piece just to answer a
+   * yes/no question.
+   *
+   * @param pieceId - The id of the piece to check.
+   * @param game - The game providing board and player-state context.
+   */
+  private hasLegalMove(pieceId: string, game: Game): boolean {
+    const board = game.getBoard();
+    const selectedPiece = board.getPiece(pieceId);
+    if (!selectedPiece) return false;
+
+    if (
+      game.isPlayerCheckMated(selectedPiece.color) ||
+      game.isPlayerStalled(selectedPiece.color)
+    ) {
+      return false;
     }
 
-    return true;
+    const candidates = this.generateCandidateMoves(selectedPiece, board, game);
+
+    return candidates.some(move =>
+      this.isMoveLegal(move, selectedPiece.color, board)
+    );
   }
 
   /**
