@@ -3,7 +3,7 @@ import { Game } from "../game";
 import { Move, MoveGenerator } from "../moves";
 import { rookCastleDirectionOffset } from "../moves/rook-moves";
 import { CapturedPiece, Color, GameStatus, Piece, PieceType, PlayerState } from "../types";
-import { pickRandomElement } from "../utils/utils";
+import { pickRandomElement, rookInitialSquareId } from "../utils/utils";
 
 /**
  * Base rules engine for a four-player chess variant.
@@ -150,7 +150,7 @@ export abstract class RuleSet {
         const color = movedPiece.color;
         game.addMovedPiece(`R-${color}-${move.castle}`);
     }
-    this.recordMove(appliedMove, movedPiece.color, game);
+    this.recordMove(appliedMove, game);
 
     return true;
   }
@@ -181,8 +181,6 @@ export abstract class RuleSet {
     this.applyPromotion(appliedMove, board);
     this.applyCastling(move, board);
 
-    /* Piece captured is either from en-passant 
-    /* or direct capture but never both */
     const capturedPieceId = directCapturedId;
 
     const capturedPiece =
@@ -206,7 +204,7 @@ export abstract class RuleSet {
 
   /**
    * Enriches a move with `capture` if a piece already occupies the
-   * destination square (i.e. a standard, non-en-passant capture).
+   * destination square.
    */
   private withDirectCapture(move: Move, board: Board): Move {
     const capturedPiece = board.getPieceAt(move.to);
@@ -246,23 +244,97 @@ export abstract class RuleSet {
   }
 
   /**
+   * Reverses a move previously applied via {@link RuleSet.applyMoveOnBoard},
+   * restoring `board` to the state it was in immediately before `move`
+   * was applied.
+   *
+   * ⚠️ This is used exclusively for causal analysis — specifically,
+   * {@link RuleSet.findCheckmateArchitect}'s counterfactual replay of a
+   * bounded move window — and is never part of normal forward gameplay.
+   * It relies on `game` still holding the original {@link CapturedPiece}
+   * record for any piece captured by `move` (see
+   * {@link Game.getCapturedPiece}), since a captured piece's data is no
+   * longer recoverable from the board itself once removed.
+   *
+   * @param move - A previously applied move to undo. Must be the exact
+   * move object produced by {@link RuleSet.applyMoveOnBoard} (i.e. with
+   * `capture` already resolved), not a raw pre-application candidate.
+   * @param board - The board to mutate. Must currently reflect the state
+   * that resulted from applying `move`.
+   * @param game - Used solely to look up captured-piece data for restoration.
+   */
+  protected undoMoveOnBoard(move: Move, board: Board, game: Game): void {
+    if (move.pawnSpecialMove === "promotion") {
+      board.revertPromotion(move.pieceId);
+    }
+
+    if (move.castle) {
+      const color = board.getPiece(move.pieceId)!.color;
+
+      board.placePiece(
+        `R-${color}-${move.castle}`,
+        rookInitialSquareId(color, move.castle === "kingside")
+      );
+    }
+
+    board.placePiece(move.pieceId, move.from);
+
+    if (move.capture !== undefined) {
+      const { capturedBy, ...piece } = game.getCapturedPiece(move.capture)!;
+
+      board.restorePiece(piece, move.to);
+    }
+  }
+
+  /**
    * Records a move into the game's history, attaching an annotation of
-   * which opponent king(s), if any, the move puts in check — analogous to
-   * the `+`/`#` suffix in standard algebraic notation.
+   * which king(s), if any, became **newly** checked as a direct result of
+   * this move — analogous to the `+`/`#` suffix in standard algebraic
+   * notation.
+   *
+   * A king is only recorded here if it was **not** already in check
+   * immediately before this move (per the game's current
+   * {@link PlayerState.CHECK} tracking, which — since this method always
+   * runs before {@link RuleSet.applyRulesPostMove} recomputes it for the
+   * resulting position — still reflects the state prior to this move).
+   * This correctly attributes a discovered check to whichever move
+   * uncovered it, even when the attacking piece belongs to a different
+   * color than the piece that moved.
    *
    * @param move - The applied move to record.
-   * @param color - The color of the piece that was moved (used to look up
-   * checks delivered *by* this color's pieces, not checks *against* it).
    * @param game - The game whose history should be updated.
    */
-  private recordMove(move: Move, color: Color, game: Game): void {
-    const checkInfos = this.getCheckInfos(color, game);
+  private recordMove(move: Move, game: Game): void {
+    const checkedAfter = this.getCheckedKings(game.getBoard());
+
+    const newlyChecked = RuleSet.PLAYER_COLORS.filter(color =>
+      checkedAfter.has(color) && !game.hasPlayerState(color, PlayerState.CHECK)
+    );
 
     game.addMoveToHistory(
-      checkInfos.size > 0
-        ? { ...move, check: checkInfos }
+      newlyChecked.length > 0
+        ? { ...move, check: newlyChecked }
         : move
     );
+  }
+
+  /**
+   * Computes the set of colors whose king is currently in check on `board`,
+   * regardless of which color(s) are delivering those checks.
+   *
+   * Built on {@link RuleSet.isKingInCheck}; concrete subclasses do not
+   * need to implement this separately.
+   *
+   * @param board - The board to evaluate.
+   */
+  protected getCheckedKings(board: Board): Set<Color> {
+    const checked = new Set<Color>();
+
+    for (const color of RuleSet.PLAYER_COLORS) {
+      if (this.isKingInCheck(board, color)) checked.add(color);
+    }
+
+    return checked;
   }
 
   /**
@@ -343,44 +415,6 @@ export abstract class RuleSet {
    */
   abstract endGame(game: Game): void;
 
-  /**
-   * Determines which checks are currently being delivered **by** the
-   * pieces belonging to the given attacking player(s), against any
-   * opposing king(s) — regardless of whether those opponents are included
-   * in `players`.
-   *
-   * A piece never counts as checking its own color's king.
-   *
-   * @param board - The board to evaluate.
-   * @param players - The colors whose pieces should be considered as
-   * potential attackers. Pass all four colors (e.g.
-   * `RuleSet.PLAYER_COLORS`) to compute the complete set of checks present
-   * in a position, or a single color to compute only the checks delivered
-   * by that player's pieces (see {@link RuleSet.getCheckInfos}).
-   * @returns A map from an **attacking piece's id** to the list of
-   * opponent king-colors that piece is currently checking. Pieces that
-   * are not delivering any check are omitted entirely.
-   */
-  protected abstract getActiveChecks(
-    board: Board,
-    players: Iterable<Color>
-  ): Map<string, Color[]>;
-
-  /**
-   * Convenience wrapper around {@link RuleSet.getActiveChecks} restricted
-   * to a single attacking player.
-   *
-   * @param player - The color whose pieces should be considered as
-   * potential attackers.
-   * @param game - The game to evaluate.
-   * @returns A map from one of `player`'s piece ids to the opponent
-   * king-color(s) it is currently checking (empty if `player` is
-   * delivering no checks at all).
-   */
-  public getCheckInfos(player: Color, game: Game): Map<string, Color[]> {
-    return this.getActiveChecks(game.getBoard(), [player]);
-  }
-  
   /**
    * Computes all fully legal moves for a given piece — i.e. pseudo-legal
    * moves (from {@link MoveGenerator}), with any destination occupied by
@@ -480,11 +514,12 @@ export abstract class RuleSet {
    * Determines whether `kingColor`'s king is currently in check by any
    * opposing piece.
    *
-   * This is a narrower, faster alternative to {@link RuleSet.getActiveChecks}
-   * for callers that only need a yes/no answer for a single king — notably
-   * {@link RuleSet.isMoveLegal}, which calls this once per candidate move
-   * being tested and benefits from an early-exit check rather than a full
-   * attacker/target map.
+   * This is a narrower, faster alternative to computing a full
+   * attacker/target map for callers that only need a yes/no answer for a
+   * single king — notably {@link RuleSet.isMoveLegal}, which calls this
+   * once per candidate move being tested and benefits from an early-exit
+   * check, and {@link RuleSet.getCheckedKings}, which calls this once per
+   * color.
    *
    * @param board - The board to evaluate.
    * @param kingColor - The color whose king should be checked.
@@ -594,7 +629,6 @@ export abstract class RuleSet {
    * `false` otherwise (no state is changed in that case).
    */
   public claimVictory(player: Color, game: Game): boolean {
-    // A player may only claim victory when exactly two active players remain.
     const activePlayers = this.getActivePlayers(game);
 
     if (activePlayers.length !== 2)
@@ -605,16 +639,11 @@ export abstract class RuleSet {
     const playerScore = game.getPlayer(player).getScore();
     const otherPlayerScore = game.getPlayer(otherPlayer).getScore();
 
-    // The claim is only valid if the leading player is ahead by at least
-    // 21 points. Awarding 20 points to the opponent can therefore never
-    // change the final winner.
     if (playerScore - otherPlayerScore <= 20)
       return false;
 
-    // End the game immediately by eliminating the claimant.
     game.resignPlayer(player);
 
-    // The remaining player receives the standard 20 resignation points.
     this.awardPlayerPoints(otherPlayer, 20, game);
 
     this.endGame(game);
@@ -641,7 +670,7 @@ export abstract class RuleSet {
    *
    * ⚠️ Despite the name, this does not by itself distinguish checkmate
    * from stalemate — it is a generic "no legal moves exist" check.
-   * Combine with {@link RuleSet.getCheckInfos} to determine which
+   * Combine with {@link RuleSet.getCheckedKings} to determine which
    * condition applies.
    *
    * Stops at the first piece found to have a legal move (and, within
@@ -691,6 +720,124 @@ export abstract class RuleSet {
     return candidates.some(move =>
       this.isMoveLegal(move, selectedPiece.color, board)
     );
+  }
+
+  /**
+   * Identifies which color is **causally responsible** for `checkedColor`
+   * being checkmated, distinguishing genuine authorship of the mate from
+   * merely attacking the king geometrically at the moment mate is
+   * detected (see the class-level discussion of discovered checks for why
+   * these can differ in a four-player context).
+   *
+   * @remarks
+   * This method trusts `checkedColor`'s {@link PlayerState.CHECKMATE} flag
+   * only as a trigger to run analysis, not as ground truth: it independently
+   * verifies the king is actually in check on the current board before
+   * attempting any causal attribution, returning `undefined` otherwise. This
+   * guards against a `CHECKMATE` state applied without a genuine underlying
+   * check — e.g., a player eliminated by means other than an actual board
+   * checkmate — which would otherwise cause the window-based fallback to
+   * spuriously blame whichever color moved most recently.
+   *
+   * `checkedColor` can only be evaluated for checkmate on their own turn
+   * (see {@link RuleSet.updateGameState}), by which point up to three
+   * other players may have moved since `checkedColor`'s own last move.
+   * Responsibility is resolved by testing each of those half-moves, from
+   * most recent to oldest: a move is deemed responsible if **omitting it
+   * alone** (while keeping every other move in the window applied, via a
+   * counterfactual replay built with {@link RuleSet.undoMoveOnBoard} /
+   * {@link RuleSet.applyMoveOnBoard}) would mean `checkedColor` is no
+   * longer both in check and without any legal move.
+   *
+   * If the mate turns out to be "overdetermined" — i.e. no single window
+   * move's omission breaks it — responsibility defaults to the most
+   * recent move in the window.
+   *
+   * @param checkedColor - The color that has just been determined to be
+   * checkmated.
+   * @param game - The game to evaluate.
+   * @returns The color responsible for the mate, or `undefined` if
+   * `checkedColor`'s king is not actually in check on the current board, or
+   * has no prior move in history at all.
+   */
+  protected findCheckmateArchitect(checkedColor: Color, game: Game): Color | undefined {
+    if (!this.isKingInCheck(game.getBoard(), checkedColor)) return undefined;
+
+    const history = game.getHistory();
+    const windowStart = this.findLastMoveIndexOf(checkedColor, history, game) + 1;
+    const window = history.slice(windowStart);
+
+    if (window.length === 0) return undefined;
+
+    for (let i = window.length - 1; i >= 0; i--) {
+      if (!this.isStillMatedWithoutMove(checkedColor, game, window, i)) {
+        return this.resolveMoveColor(window[i], game);
+      }
+    }
+
+    return this.resolveMoveColor(window[window.length - 1], game);
+  }
+
+  /**
+   * Finds the index in `history` of `color`'s most recent move.
+   *
+   * @returns The index, or `-1` if `color` has no move in `history`.
+   */
+  private findLastMoveIndexOf(color: Color, history: Move[], game: Game): number {
+    for (let i = history.length - 1; i >= 0; i--) {
+      if (this.resolveMoveColor(history[i], game) === color) return i;
+    }
+
+    return -1;
+  }
+
+  /**
+   * Resolves the color of the piece that made a historical move, whether
+   * or not that piece has since been captured.
+   */
+  private resolveMoveColor(move: Move, game: Game): Color {
+    return (
+      game.getBoard().getPiece(move.pieceId)?.color ??
+      game.getCapturedPiece(move.pieceId)!.color
+    );
+  }
+
+  /**
+   * Tests the counterfactual "what if `window[skip]` had never been
+   * played?" by reconstructing the board immediately before `window[skip]`
+   * (via {@link RuleSet.undoMoveOnBoard}, undoing every window move from
+   * the most recent back through `skip`), then reapplying every window
+   * move **after** `skip` in order — recomputing captures fresh against
+   * the altered board at each step.
+   *
+   * @returns Whether `checkedColor` would still be both in check and
+   * without any legal move in the resulting position.
+   */
+  private isStillMatedWithoutMove(
+    checkedColor: Color,
+    game: Game,
+    window: Move[],
+    skip: number
+  ): boolean {
+    const board = game.getBoard().clone();
+
+    for (let i = window.length - 1; i >= skip; i--) {
+      this.undoMoveOnBoard(window[i], board, game);
+    }
+
+    for (let i = skip + 1; i < window.length; i++) {
+      this.applyMoveOnBoard(window[i], board);
+    }
+
+    if (!this.isKingInCheck(board, checkedColor)) return false;
+
+    const scratchGame = new Game(this, board.exportPieces());
+    // Ensures castling remains correctly forbidden out of check in the
+    // reconstructed position (getCastleMoves gates on PlayerState.CHECK
+    // rather than re-deriving it from the board).
+    scratchGame.setPlayerState(checkedColor, PlayerState.CHECK);
+
+    return this.isPlayerMate(checkedColor, scratchGame);
   }
 
   /**

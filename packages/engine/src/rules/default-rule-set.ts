@@ -5,7 +5,6 @@ import { castleDirectionOffset } from "../moves/king-moves";
 import { forwardDirection, pawnMoves } from "../moves/pawn-moves";
 import { Color, GameStatus, Piece, PieceType, PlayerState } from "../types";
 import { kingInitialSquareId, rookInitialSquareId } from "../utils/utils";
-import { EN_PASSANT_SQUARES_IDS } from "./en-passant-squares-ids";
 import { RuleSet } from "./rule-set";
 
 /**
@@ -18,15 +17,17 @@ import { RuleSet } from "./rule-set";
  * - **Capture**: the capturing player receives the captured piece's
  *   standard point value (pawn=1, knight=3, bishop/rook=5, queen=9; the
  *   king has no point value).
- * - **Multi-check** (a single move that simultaneously checks two or more
- *   opposing kings):
+ * - **Multi-check** (a single move that simultaneously delivers a *new*
+ *   check to two or more opposing kings — see {@link Move.check} for how
+ *   this correctly attributes discovered checks to their true author):
  *   | Kings checked | Non-queen mover | Queen mover |
  *   |---|---|---|
  *   | 2 | 5 | 1 |
  *   | 3 or 4 | 20 | 5 |
- * - **Checkmate**: 20 points, credited to whichever attacking color comes
- *   next in turn order after the mated player (see
- *   {@link DefaultRuleSet.awardCheckmatePoints}).
+ * - **Checkmate**: 20 points, credited to whichever color is causally
+ *   responsible for the mate — not necessarily whichever piece happens to
+ *   be attacking the mated king at the moment mate is detected (see
+ *   {@link RuleSet.findCheckmateArchitect}).
  * - **Stalemate**: the stalemated player receives 20 consolation points
  *   (unless already resigned/timed-out), and every other active player
  *   receives 10 points.
@@ -140,23 +141,23 @@ export class DefaultRuleSet extends RuleSet {
   }
 
   /**
-   * Awards a bonus when the most recent move simultaneously checks two or
-   * more opposing kings (see the class-level scoring table). No-op if the
-   * move delivered no check, or if it checked only a single king.
+   * Awards a bonus when the most recent move simultaneously delivers a
+   * new check to two or more opposing kings (see the class-level scoring
+   * table). No-op if the move delivered no new check, or if it newly
+   * checked only a single king.
+   *
+   * Because {@link Move.check} already resolves discovered checks to
+   * their true author (see {@link RuleSet.recordMove}), this correctly
+   * awards the mover credit even for a discovered multi-check delivered
+   * by a piece of a different color than the piece that actually moved.
    */
   protected awardMultiCheckPoints(_game: Game): void {
     const history = _game.getHistory();
     const lastMove = history[history.length - 1];
 
-    const checkInfos = lastMove.check;
+    const checkedKings = lastMove.check;
 
-    if (checkInfos === undefined) return;
-
-    const checkedKings: Set<Color> = new Set(
-      Array.from(checkInfos.values()).flat()
-    )
-
-    if (checkedKings.size < 2) return;
+    if (!checkedKings || checkedKings.length < 2) return;
 
     const movedPiece = _game.getBoard().getPiece(lastMove.pieceId)!;
 
@@ -164,14 +165,14 @@ export class DefaultRuleSet extends RuleSet {
       case PieceType.QUEEN:
         this.awardPlayerPoints(
           movedPiece.color,
-          checkedKings.size === 2? 1: 5,
+          checkedKings.length === 2? 1: 5,
           _game
         );
         return;
       default:
         this.awardPlayerPoints(
           movedPiece.color,
-          checkedKings.size === 2? 5: 20,
+          checkedKings.length === 2? 5: 20,
           _game
         );
         return;
@@ -224,46 +225,21 @@ export class DefaultRuleSet extends RuleSet {
   }
 
   /**
-   * Awards the 20-point checkmate bonus for `checkedColor`'s mate.
+   * Awards the 20-point checkmate bonus for `checkedColor`'s mate to
+   * whichever color is causally responsible for it, as determined by
+   * {@link RuleSet.findCheckmateArchitect}.
    *
-   * Because a king can be checkmated while simultaneously in check from
-   * pieces of more than one color, credit is resolved by walking the turn
-   * order starting right after the mated player and awarding the bonus
-   * to the **first attacking color encountered** in that order. This
-   * acts as a deterministic tie-break when multiple colors share
-   * responsibility for the mate.
-   *
-   * No-op if, unexpectedly, no attacker can be found for the mated king.
+   * No-op if, unexpectedly, no responsible color can be identified.
    */
   private awardCheckmatePoints(
       checkedColor: Color,
       game: Game
   ): void {
-      const checks = this.getActiveChecks(
-          game.getBoard(),
-          DefaultRuleSet.PLAYER_COLORS
-      );
+      const architect = this.findCheckmateArchitect(checkedColor, game);
 
-      const attackers = this.getCheckingPlayers(
-          checks,
-          checkedColor,
-          game.getBoard()
-      );
+      if (architect === undefined) return;
 
-      if (attackers.length === 0) {
-          return;
-      }
-
-      let current = game.getNextActivePlayerColor(checkedColor)!;
-
-      while (current !== checkedColor) {
-          if (attackers.includes(current)) {
-              this.awardPlayerPoints(current, 20, game);
-              return;
-          }
-
-          current = game.getNextActivePlayerColor(current)!;
-      }
+      this.awardPlayerPoints(architect, 20, game);
   }
 
   /**
@@ -309,79 +285,6 @@ export class DefaultRuleSet extends RuleSet {
     }
 
     game.setGameStatus(GameStatus.OVER);
-  }
-
-  /**
-   * Resolves, from a checks map, the distinct set of colors whose pieces
-   * are currently delivering check to `checkedColor`'s king.
-   */
-  private getCheckingPlayers(
-      checks: Map<string, Color[]>,
-      checkedColor: Color,
-      board: Board
-  ): Color[] {
-      const attackers: Color[] = [];
-
-      for (const [pieceId, checkedColors] of checks) {
-          if (!checkedColors.includes(checkedColor)) {
-              continue;
-          }
-
-          const attacker = board.getPiece(pieceId)!.color;
-
-          if (!attackers.includes(attacker)) {
-              attackers.push(attacker);
-          }
-      }
-
-      return attackers;
-  }
-
-  /**
-   * Computes which of `players`' pieces are currently delivering check
-   * against any active king on the board (see
-   * {@link RuleSet.getActiveChecks} for the general contract).
-   *
-   * Implementation: for every color, the position of its king is recorded
-   * only if that king piece is currently marked active. Then, for each
-   * attacking player in `players`, every one of their pieces' pseudo-legal
-   * destination squares is compared against each active king's square,
-   * skipping a piece's own color's king. Any match records that piece's
-   * id as delivering check against that king's color.
-   */
-  protected getActiveChecks(
-    board: Board,
-    players: Iterable<Color>
-  ): Map<string, Color[]> {
-    const enemyKings = new Map<Color, number>();
-    const checkInfos = new Map<string, Color[]>();
-
-    for (const color of DefaultRuleSet.PLAYER_COLORS) {
-      const kingPos = board.getPositionOf(`K-${color}`);
-      if (kingPos !== undefined) {
-        if (board.getPieceAt(kingPos)!.active)
-          enemyKings.set(color, kingPos);
-      }
-    }
-
-    for (const player of players) {
-      for (const piece of board.getPiecesByColor(player)) {
-        const moves = new Set(
-          this.moveGenerator.generateMovesForPiece(piece, board)
-        );
-
-        for (const [kingColor, kingPos] of enemyKings) {
-          if (kingColor === player) continue;
-          if (!moves.has(kingPos)) continue;
-
-          const checkedColors = checkInfos.get(piece.id) ?? [];
-          checkedColors.push(kingColor);
-          checkInfos.set(piece.id, checkedColors);
-        }
-      }
-    }
-
-    return checkInfos;
   }
 
   /**
@@ -649,6 +552,18 @@ export class DefaultRuleSet extends RuleSet {
       return;
     }
 
+    // A color with no king at all on the board cannot be meaningfully
+    // evaluated for check/checkmate/stalemate. This should never occur in
+    // real gameplay — a king is only ever deactivated, never removed (see
+    // Board.setPlayerPiecesInactive) — but guards against artificially
+    // constructed positions (e.g. test setups that omit a color's pieces
+    // entirely) which would otherwise trigger a vacuous "no legal moves"
+    // verdict via isPlayerMate's `![].some(...)` behavior on an empty
+    // piece list, spuriously classifying an absent player as stalemated.
+    if (game.getBoard().getPositionOf(`K-${currentPlayerColor}`) === undefined) {
+      return;
+    }
+
     // Reset all active CHECK states before recomputing them.
     for (const color of DefaultRuleSet.PLAYER_COLORS) {
       if (game.hasPlayerState(color, PlayerState.CHECK)) {
@@ -657,20 +572,15 @@ export class DefaultRuleSet extends RuleSet {
     }
 
     // Recompute all active checks from the current board position.
-    const activeChecks = this.getActiveChecks(
-      game.getBoard(),
-      DefaultRuleSet.PLAYER_COLORS
-    );
+    const checkedColors = this.getCheckedKings(game.getBoard());
 
-    const checkedColors: Color[] = Array.from(activeChecks.values()).flat();
-
-    for (const color of new Set(checkedColors)) {
+    for (const color of checkedColors) {
       game.setPlayerState(color, PlayerState.CHECK);
     }
 
     if (!this.isPlayerMate(currentPlayerColor, game)) return;
 
-    if (checkedColors.includes(currentPlayerColor)) {
+    if (checkedColors.has(currentPlayerColor)) {
       game.setPlayerState(currentPlayerColor, PlayerState.CHECKMATE);
     } else {
       game.setPlayerState(currentPlayerColor, PlayerState.STALEMATE);
@@ -763,9 +673,6 @@ export class DefaultRuleSet extends RuleSet {
     ]);
 
     for (const color of DefaultRuleSet.PLAYER_COLORS) {
-      // Ignore players that are already out of the game.
-      // Resigned or timed-out kings are still considered because they
-      // remain active until they are eventually checkmated or stalemated.
       if(!game.isPlayerActive(color) && 
          !game.isPlayerResignedOrTimedOut(color)
         ) {
@@ -775,7 +682,6 @@ export class DefaultRuleSet extends RuleSet {
       const pieces = game.getBoard().getPiecesByColor(color);
 
       for (const piece of pieces) {
-        // Any remaining pawn, rook or queen is sufficient mating material.
         if (
           piece.type !== PieceType.BISHOP &&
           piece.type !== PieceType.KNIGHT &&
@@ -786,16 +692,10 @@ export class DefaultRuleSet extends RuleSet {
 
         const playerPieces = remainingPieces.get(color)!;
         if(piece.active) {
-          // Still necessary condition because
-          // of resigned or timed-out players
           playerPieces.push(piece);
         }
         remainingPieces.set(color, playerPieces);
 
-        // Store the king mobility.
-        // It is only needed for the king + two knights endgame,
-        // where checkmate remains theoretically possible if the defending
-        // king still has enough freedom to cooperate unintentionally.
         if (piece.type === PieceType.KING) {
           const kingMoves = this.moveGenerator.generateMovesForPiece(
             piece,
@@ -810,12 +710,9 @@ export class DefaultRuleSet extends RuleSet {
         .get(color)!
         .map(piece => piece.type);
 
-      // More than king + two minor pieces is always sufficient material.
       if (remainingPieceTypes.length > 3)
         return false;
 
-      // Any combination containing a bishop (K+B+B or K+B+N)
-      // is sufficient mating material.
       if (
         remainingPieceTypes.length === 3 &&
         remainingPieceTypes.includes(PieceType.BISHOP)
@@ -833,14 +730,9 @@ export class DefaultRuleSet extends RuleSet {
       }
     }
 
-    // Only kings, kings + bishops and kings + single knights remain.
-    // None of these positions can lead to a forced checkmate.
     if (!hasDoubleKnight)
       return true;
 
-    // At least one player still has king + two knights.
-    // Checkmate remains theoretically possible only if a defending king
-    // still has enough legal moves to cooperate unintentionally.
     const kingMoveCounts = Array.from(remainingKingsMovesLength.values());
 
     return kingMoveCounts.every(moveCount => moveCount < 2);

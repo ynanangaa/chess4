@@ -15,8 +15,8 @@ export function createClassicGame(initialPosition: InitialPosition): Game {
   return new Game(new DefaultRuleSet(new MoveGenerator()), initialPosition);
 }
 
-export function eliminate(color: Color, game: Game): void {
-  game.setPlayerState(color, PlayerState.CHECKMATE);
+export function resignWithoutKing(color: Color, game: Game): void {
+  game.setPlayerState(color, PlayerState.RESIGNED);
   game.setPlayerInactive(color);
 }
 

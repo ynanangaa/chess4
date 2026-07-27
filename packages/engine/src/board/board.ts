@@ -222,6 +222,46 @@ export class Board {
   }
 
   /**
+   * Reinserts a previously removed piece directly onto a square, bypassing
+   * normal capture semantics (i.e. it does **not** clear or displace
+   * whatever else may already be tracked at `squareId` — callers are
+   * responsible for ensuring the square is actually free).
+   *
+   * ⚠️ This exists exclusively to support **undoing** a previously applied
+   * move (see {@link RuleSet.undoMoveOnBoard}), by restoring a captured
+   * piece to the board exactly as it was before capture. It is not part of
+   * normal gameplay and should not be used for anything else.
+   *
+   * @param piece - The piece to reinsert, exactly as it existed before
+   * removal (e.g. as recorded via {@link Game.getCapturedPiece}, minus
+   * the `capturedBy` annotation).
+   * @param squareId - The square to place it on.
+   */
+  public restorePiece(piece: Piece, squareId: number): void {
+    this.pieces.set(piece.id, piece);
+    this.piecePositions.set(piece.id, squareId);
+    this.occupiedSquares.set(squareId, piece.id);
+  }
+
+  /**
+   * Reverts a previously promoted piece back to a pawn. No-op if the piece
+   * does not exist or is not currently promoted (i.e. is already a pawn).
+   *
+   * ⚠️ This exists exclusively to support **undoing** a previously applied
+   * promotion move (see {@link RuleSet.undoMoveOnBoard}). It is not part
+   * of normal gameplay.
+   *
+   * @param pieceId - The id of the piece to revert.
+   */
+  public revertPromotion(pieceId: string): void {
+    const piece = this.pieces.get(pieceId);
+
+    if (piece && piece.type !== PieceType.PAWN) {
+      this.pieces.set(pieceId, { ...piece, type: PieceType.PAWN });
+    }
+  }
+
+  /**
    * Marks all of a player's pieces as inactive, typically used when a
    * player is eliminated from the game.
    *
@@ -279,10 +319,34 @@ export class Board {
    * @returns A new, independent `Board` instance with the same state.
    */
   public clone(): Board {
-    const pieces = Array.from(this.pieces.values());
+    const pieces = Array.from(this.pieces.values(), p => JSON.parse(JSON.stringify(p)));
     const positions = pieces.map(piece => this.piecePositions.get(piece.id)!);
 
     return new Board([pieces, positions]);
+  }
+
+  /**
+   * Exports the board's current pieces and their positions as a
+   * constructor-compatible tuple, suitable for seeding a new `Board` (or,
+   * via {@link Game}'s constructor, a new `Game`) with an exact snapshot
+   * of this position.
+   *
+   * Unlike {@link Board.clone}, this does **not** deep-clone individual
+   * `Piece` objects — it returns direct references to them. This is safe
+   * under the same immutability invariant that makes `clone` safe, and is
+   * intentionally cheaper for callers (e.g. checkmate causal-attribution
+   * analysis in {@link RuleSet}) that only need a throwaway `Board`/`Game`
+   * built from the current position, without independent mutation
+   * isolation from `this`.
+   *
+   * @returns A `[pieces, squareIds]` tuple describing every piece
+   * currently on the board.
+   */
+  public exportPieces(): [Piece[], number[]] {
+    const pieces = Array.from(this.pieces.values());
+    const positions = pieces.map(piece => this.piecePositions.get(piece.id)!);
+
+    return [pieces, positions];
   }
 
   /**

@@ -8,6 +8,10 @@ export type CastleSide = "kingside" | "queenside";
  * normal move:
  * - `"doublestep"` — a pawn's initial two-square advance.
  * - `"promotion"` — a pawn reaching the far rank and being promoted.
+ *
+ * @remarks
+ * En passant does not exist in this four-player variant and is
+ * intentionally not represented here.
  */
 export type PawnSpecialMove = "doublestep" | "promotion";
 
@@ -17,9 +21,10 @@ export type PawnSpecialMove = "doublestep" | "promotion";
  *
  * Some fields are populated progressively as a move travels through
  * {@link RuleSet.applyMoveOnBoard}: `capture` may be set by move generation
- * for pseudo-legal moves, or computed during application (direct capture);
- * `check` is only added once a move has actually been applied and its effects
- * on opposing kings have been computed (see {@link RuleSet.applyMove}).
+ * for a direct capture, or (re)computed during application against the
+ * board's actual occupancy; `check` is only added once a move has actually
+ * been applied and its effects on opposing kings have been computed (see
+ * {@link RuleSet.applyMove}).
  */
 export interface Move {
   /** The stable id of the piece being moved. */
@@ -32,9 +37,8 @@ export interface Move {
   to: number;
 
   /**
-   * The id of a piece captured by this move, if any. May be set by the
-   * move generator for a direct capture, or computed later (e.g. for en
-   * passant, where the captured pawn does not occupy `to`).
+   * The id of a piece captured by this move, if any. Resolved from board
+   * occupancy at the destination square.
    */
   capture?: string;
 
@@ -50,18 +54,23 @@ export interface Move {
   pawnSpecialMove?: PawnSpecialMove;
 
   /**
-   * Records the check(s) **delivered by this move**, i.e. which opposing
-   * king(s) end up in check as a result of the moved piece's new position
-   * — analogous to the `+`/`#` suffix in standard algebraic notation
-   * (e.g. `Ne5+`).
+   * Colors whose king became **newly** in check as a direct result of
+   * this move — i.e. was not already in check immediately beforehand —
+   * analogous to the `+`/`#` suffix in standard algebraic notation (e.g.
+   * `Ne5+`).
    *
-   * Keyed by the **moved piece's own id** (there is only ever one relevant
-   * key here in practice, since a single move is made by a single piece),
-   * mapped to the list of opponent colors whose king that piece is now
-   * checking. Absent (or empty) if the move delivers no check.
+   * This correctly attributes a *discovered* check to the mover even when
+   * the attacking piece belongs to a **different color** than the piece
+   * that moved (e.g. color A's piece vacates a square that was blocking
+   * color B's line of attack on color C's king — a scenario unique to
+   * four-player chess, since causal responsibility for the check lies
+   * with whoever's move created it, not with whichever piece happens to
+   * geometrically attack the king).
    *
-   * See {@link RuleSet.getActiveChecks} for the general shape this map
-   * follows outside of move-history annotation.
+   * A king already in check before this move is never re-included here,
+   * even if this same move also happens to threaten it independently.
+   *
+   * Absent (or empty) if the move delivers no *new* check.
    */
-  check?: Map<string, Color[]>;
+  check?: Color[];
 }
