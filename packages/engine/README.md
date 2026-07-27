@@ -24,8 +24,9 @@ for a future team-based variant and is not yet functionally distinct from
 - Full four-player move generation for all standard piece types (pawn,
   knight, bishop, rook, queen, king), adapted to the four-way board
   geometry.
-- Castling and en passant, adapted for four simultaneous opponents.
+- Castling.
 - Pawn promotion, including diagonal-capture promotions.
+- (En passant is not allowed for four simultaneous opponents).
 - Check, checkmate, and stalemate detection per player.
 - Draw detection: threefold repetition, a four-player-scaled 50-move
   rule, and insufficient-material evaluation (including the king + two
@@ -127,7 +128,7 @@ console.log(game.getBoard().toString());
 |---|---|
 | `Game` | Main orchestrator and public entry point: turn progression, scoring, history, player state. |
 | `Board` | Pure board state: piece placement, occupancy, cloning. Knows nothing about rules. |
-| `RuleSet` | Abstract rules contract: legality, check detection, castling/en passant/promotion hooks, draw conditions. |
+| `RuleSet` | Abstract rules contract: legality, check detection, castling/promotion hooks, draw conditions. |
 | `DefaultRuleSet` | Concrete free-for-all rules implementation, including scoring. |
 | `TeamRuleSet` | Placeholder for a future team-based variant. |
 | `MoveGenerator` | Computes raw, pseudo-legal movement patterns per piece type. |

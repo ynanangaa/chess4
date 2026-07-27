@@ -413,8 +413,8 @@ export class DefaultRuleSet extends RuleSet {
   }
 
   /**
-   * Expands a pawn's pseudo-legal moves with promotion, double-step, and
-   * en passant moves as applicable.
+   * Expands a pawn's pseudo-legal moves with promotion and double-step
+   * as applicable.
    *
    * Promotion destinations (see {@link DefaultRuleSet.getPromotionMoves})
    * are matched against `moves` by destination square and swapped in with
@@ -430,7 +430,6 @@ export class DefaultRuleSet extends RuleSet {
     const board = game.getBoard();
     const promotionMoves = this.getPromotionMoves(pawn, from, board);
     const doubleStepMove = this.getPawnDoubleStep(pawn, from, board);
-    const enPassantMoves = this.getEnPassantMoves(pawn, from, game);
 
     if (promotionMoves.length > 0) {
       const promotionByDestination = new Map(
@@ -440,7 +439,6 @@ export class DefaultRuleSet extends RuleSet {
     }
 
     if (doubleStepMove) moves.push(doubleStepMove);
-    if (enPassantMoves) moves.push(...enPassantMoves);
 
     return moves;
   }
@@ -560,122 +558,6 @@ export class DefaultRuleSet extends RuleSet {
       default:
         return false;
     }
-  }
-
-  /**
-   * Computes en passant capture moves available to `pawn` from `from`.
-   *
-   * Adapted for four players: rather than only considering the single
-   * immediately preceding move (as in two-player chess), this checks
-   * **every** opponent move made since this pawn's own color last had a
-   * turn (see {@link DefaultRuleSet.getOpponentMovesSinceLastTurn}), since
-   * up to three opponents may have moved in between. Each qualifying
-   * double-step move by an adjacent enemy pawn produces a corresponding
-   * en passant capture option.
-   *
-   * @returns An array of available en passant moves (possibly empty) if
-   * `from` is one of the squares from which en passant is geometrically
-   * possible; an empty array otherwise.
-   */
-  public getEnPassantMoves(
-    pawn: Piece,
-    from: number,
-    game: Game
-  ): Move[] {
-    if (!EN_PASSANT_SQUARES_IDS.has(from))
-      return [];
-
-    const moves: Move[] = [];
-
-    const opponentMoves = this.getOpponentMovesSinceLastTurn(
-      pawn.color,
-      game
-    );
-
-    for (const move of opponentMoves) {
-      if (move.pawnSpecialMove !== "doublestep")
-        continue;
-
-      const destination = this.getEnPassantDestination(
-        pawn,
-        from,
-        move
-      );
-
-      if (destination === undefined)
-        continue;
-
-      moves.push(
-        this.moveGenerator.buildMove(
-          pawn.id,
-          from,
-          destination,
-          undefined,
-          "e-p"
-        )
-      );
-    }
-
-    return moves;
-  }
-
-  /**
-   * Resolves the destination square of an en passant capture against a
-   * specific opponent double-step move, based on `pawn`'s color-specific
-   * direction of travel and adjacency to the opponent's landing square.
-   *
-   * @returns The capture destination square, or `undefined` if
-   * `lastMove` is not adjacent to `pawn` in a way that permits en passant.
-   */
-  private getEnPassantDestination(
-    pawn: Piece,
-    from: number,
-    lastMove: Move
-  ): number | undefined {
-    if (pawn.color === Color.RED || pawn.color === Color.YELLOW) {
-      if (lastMove.to !== from - 14 && lastMove.to !== from + 14) {
-        return undefined;
-      }
-
-      return pawn.color === Color.RED ? lastMove.to + 1 : lastMove.to - 1;
-    }
-
-    if (lastMove.to !== from - 1 && lastMove.to !== from + 1) {
-      return undefined;
-    }
-
-    return pawn.color === Color.BLUE ? lastMove.to + 14 : lastMove.to - 14;
-  }
-
-  /**
-   * Collects all moves played by other colors since `player`'s own last
-   * move, walking the history backwards until (and excluding) `player`'s
-   * most recent move.
-   */
-  private getOpponentMovesSinceLastTurn(
-    player: Color,
-    game: Game
-  ): Move[] {
-    const history = game.getHistory();
-    const moves: Move[] = [];
-
-    for (let i = history.length - 1; i >= 0; i--) {
-      const move = history[i];
-      
-      // Look up the piece on either the active board OR the captured registry
-      const piece = game.getBoard().getPiece(move.pieceId) 
-        ?? game.getCapturedPiece(move.pieceId);
-        
-      const moveColor = piece!.color;
-
-      if (moveColor === player) {
-        break;
-      }
-
-      moves.push(move);
-    }
-
-    return moves;
   }
 
   /**

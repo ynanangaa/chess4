@@ -27,7 +27,7 @@ const NEXT_PLAYER_COLOR = new Map<Color, Color>([
  * - {@link Game.rankPlayersByScore} to inspect standings.
  *
  * The supplied {@link RuleSet} owns chess-variant-specific behavior:
- * legality, check, checkmate, castling, en passant, scoring, draws, and
+ * legality, check, checkmate, castling, scoring, draws, and
  * game-ending rules.
  *
  * @example

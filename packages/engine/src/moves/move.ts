@@ -7,10 +7,9 @@ export type CastleSide = "kingside" | "queenside";
  * A special one-time pawn move that requires extra bookkeeping beyond a
  * normal move:
  * - `"doublestep"` — a pawn's initial two-square advance.
- * - `"e-p"` — an en passant capture.
  * - `"promotion"` — a pawn reaching the far rank and being promoted.
  */
-export type PawnSpecialMove = "doublestep" | "e-p" | "promotion";
+export type PawnSpecialMove = "doublestep" | "promotion";
 
 /**
  * A single move, either as a candidate produced by move generation/legality
@@ -18,10 +17,9 @@ export type PawnSpecialMove = "doublestep" | "e-p" | "promotion";
  *
  * Some fields are populated progressively as a move travels through
  * {@link RuleSet.applyMoveOnBoard}: `capture` may be set by move generation
- * for pseudo-legal moves, or computed during application (direct capture or
- * en passant); `check` is only added once a move has actually been applied
- * and its effects on opposing kings have been computed (see
- * {@link RuleSet.applyMove}).
+ * for pseudo-legal moves, or computed during application (direct capture);
+ * `check` is only added once a move has actually been applied and its effects
+ * on opposing kings have been computed (see {@link RuleSet.applyMove}).
  */
 export interface Move {
   /** The stable id of the piece being moved. */

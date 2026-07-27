@@ -31,38 +31,6 @@ describe('Game special moves', () => {
   );
 
   test.each([Color.RED, Color.BLUE])(
-    'applies en-passant moves by removing the captured pawn for %s',
-    color => {
-      const pawn = buildPawn(color, 4);
-      const enemyPawn = buildPawn(color === Color.RED ? Color.YELLOW : Color.GREEN, 4);
-      const pawnStart = parseSquareId(5, 5);
-      const enemyStart = color === Color.RED ? parseSquareId(5, 4) : parseSquareId(4, 5);
-      const lastMoveTarget = color === Color.RED ? pawnStart + 14 : pawnStart + 1;
-      const enPassantTarget = color === Color.RED ? lastMoveTarget + 1 : lastMoveTarget + 14;
-
-      const game = createClassicGame([[pawn, enemyPawn], [pawnStart, enemyStart]]);
-
-      game.applyMove({
-        pieceId: enemyPawn.id,
-        from: enemyStart,
-        to: lastMoveTarget,
-        pawnSpecialMove: 'doublestep'
-      });
-
-      const enPassantMove = game
-        .getLegalMoves(pawn.id)
-        .find(move => move.to === enPassantTarget);
-
-      expect(enPassantMove).toBeDefined();
-      expect(enPassantMove?.pawnSpecialMove).toBe('e-p');
-      expect(game.applyMove(enPassantMove!)).toBe(true);
-      expect(game.getBoard().getPositionOf(pawn.id)).toBe(enPassantTarget);
-      expect(game.getBoard().getPieceAt(lastMoveTarget)).toBeUndefined();
-      expect(game.getBoard().getPieceAt(enPassantTarget)).toEqual(pawn);
-    }
-  );
-
-  test.each([Color.RED, Color.BLUE])(
     'applies castling moves by moving the rook into place for %s',
     color => {
       const king = buildKing(color);

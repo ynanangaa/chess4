@@ -1,7 +1,6 @@
 import { Board } from "../board";
 import { Game } from "../game";
 import { Move, MoveGenerator } from "../moves";
-import { enPassantCapturedPawnSquare } from "../moves/pawn-moves";
 import { rookCastleDirectionOffset } from "../moves/rook-moves";
 import { CapturedPiece, Color, GameStatus, Piece, PieceType, PlayerState } from "../types";
 import { pickRandomElement } from "../utils/utils";
@@ -15,7 +14,7 @@ import { pickRandomElement } from "../utils/utils";
  * filtering pseudo-legal moves down to truly legal ones (i.e. moves that
  * don't leave the mover's own king in check), and computing repetition
  * keys for draw detection — while delegating variant-specific rules
- * (castling availability, en passant availability, promotion, check
+ * (castling availability, promotion, check
  * detection, endgame conditions, and 50-move/insufficient-material draw
  * detection) to concrete subclasses via `abstract` methods.
  *
@@ -158,14 +157,8 @@ export abstract class RuleSet {
   
   /**
    * Applies a move directly onto a board, handling all special-move
-   * bookkeeping (direct capture, en passant, promotion, castling rook
+   * bookkeeping (capture, promotion, castling rook
    * movement) and physically relocating the piece.
-   *
-   * Capture resolution order: a direct capture (piece already occupying
-   * `move.to`) is detected first; if the move is instead an en passant
-   * capture, that takes precedence for the returned captured piece. A
-   * move can only result from **one** of these two capture types, never
-   * both.
    *
    * @param move - The move to apply. Only `pieceId`, `to`, and
    * `pawnSpecialMove`/`castle` (if present) are used as input; `capture`
@@ -184,17 +177,13 @@ export abstract class RuleSet {
     let appliedMove = this.withDirectCapture(move, board);
 
     let directCapturedId = appliedMove.capture;
-    let enPassantCapturedId: string | undefined = undefined;
-
-    [appliedMove, enPassantCapturedId] = 
-      this.applyEnPassant(appliedMove, board);
 
     this.applyPromotion(appliedMove, board);
     this.applyCastling(move, board);
 
     /* Piece captured is either from en-passant 
     /* or direct capture but never both */
-    const capturedPieceId = directCapturedId ?? enPassantCapturedId;
+    const capturedPieceId = directCapturedId;
 
     const capturedPiece =
       capturedPieceId !== undefined
@@ -206,9 +195,6 @@ export abstract class RuleSet {
     if (!movedPiece) return [undefined, undefined];
 
     if(!capturedPiece) return [appliedMove, capturedPiece];
-
-    if (enPassantCapturedId !== undefined)
-      board.removePiece(enPassantCapturedId);
 
     return [
       appliedMove, {
@@ -228,46 +214,6 @@ export abstract class RuleSet {
     if (!capturedPiece) return move;
 
     return { ...move, capture: capturedPiece.id };
-  }
-
-  /**
-   * Enriches a move with `capture` if it represents an en passant capture,
-   * resolving the id of the captured pawn (which does not occupy the
-   * move's destination square).
-   *
-   * @returns A tuple of the (possibly enriched) move and the captured
-   * pawn's id, or `undefined` if this is not a valid en passant capture.
-   */
-  private applyEnPassant(
-    move: Move, 
-    board: Board)
-    : [Move, string | undefined] {
-    const capturedPieceId = this.getCapturedPieceIdForEnPassant(move, board);
-    if (!capturedPieceId) return [move, undefined];
-
-    return [{ ...move, capture: capturedPieceId }, capturedPieceId];
-  }
-
-  /**
-   * Resolves the id of the pawn captured by an en passant move, or
-   * `undefined` if the move is not a valid en passant capture (wrong
-   * special-move flag, piece isn't a pawn, target square empty, or the
-   * piece there is the same color as the mover).
-   */
-  private getCapturedPieceIdForEnPassant(
-    move: Move,
-    board: Board
-  ): string | undefined {
-    if (move.pawnSpecialMove !== "e-p") return undefined;
-
-    const movingPiece = board.getPiece(move.pieceId);
-    if (!movingPiece || movingPiece.type !== PieceType.PAWN) return undefined;
-
-    const capturedSquare = enPassantCapturedPawnSquare(move.to, movingPiece.color);
-    const capturedPiece = board.getPieceAt(capturedSquare);
-    if (!capturedPiece || capturedPiece.color === movingPiece.color) return undefined;
-
-    return capturedPiece.id;
   }
 
   /**
@@ -352,8 +298,8 @@ export abstract class RuleSet {
   /**
    * Computes a deterministic string key representing the game's current
    * position for repetition-detection purposes, incorporating board
-   * state, the player to move, remaining castling rights, and available
-   * en passant targets — analogous in purpose to a FEN's position fields.
+   * state, the player to move and remaining castling rights, en passant
+   * not being allowed — analogous in purpose to a FEN's position fields.
    *
    *
    * @param game - The game whose position should be hashed.
@@ -369,34 +315,14 @@ export abstract class RuleSet {
       currentPlayer, 
       game
     ).map(c => c.castle!);
-    const enPassantTargets: string[] = [];
-
-    for (const piece of board.getPiecesByColor(currentPlayer)) {
-      if (piece.type === PieceType.PAWN) {
-        const from = board.getPositionOf(piece.id)!;
-        const moves = this.getEnPassantMoves(piece, from, game);
-
-        if (!moves) continue;
-
-        for (const move of moves) {
-          enPassantTargets.push(
-            move.pieceId + ',' + move.to.toString()
-          );
-        }
-      }
-    }
 
     castlingRights.sort();
-    enPassantTargets.sort();
 
     return [
       board.toString(),
       currentPlayer,
       `castling=${castlingRights.length > 0
         ? castlingRights.join(";")
-        : "none"}`,
-      `ep=${enPassantTargets.length > 0
-        ? enPassantTargets.join(";")
         : "none"}`
     ].join("\n");
   }
@@ -583,13 +509,12 @@ export abstract class RuleSet {
 
   /**
    * Expands a pawn's list of pseudo-legal moves with any applicable
-   * special pawn moves (double-step, en passant, promotion), tagging the
+   * special pawn moves (double-step, promotion), tagging the
    * relevant `Move` objects' `pawnSpecialMove` field accordingly.
    *
    * @param pawn - The pawn being evaluated.
    * @param from - The pawn's current square id.
-   * @param game - The game providing board/history context (e.g. for
-   * determining en passant eligibility).
+   * @param game - The game providing board/history context.
    * @param moves - The pawn's pseudo-legal moves so far.
    * @returns The expanded move list.
    */
@@ -615,18 +540,6 @@ export abstract class RuleSet {
    * @param game - The game providing board/history context.
    */
   abstract getCastleMoves(player: Color, game: Game): Move[];
-
-  /**
-   * Computes the currently available en passant capture(s) for a given
-   * pawn, if any.
-   *
-   * @param pawn - The pawn to evaluate.
-   * @param from - The pawn's current square id.
-   * @param game - The game providing board/history context (en passant
-   * eligibility typically depends on the immediately preceding move).
-   * @returns An array of en passant moves, or `undefined` if none apply.
-   */
-  abstract getEnPassantMoves(pawn: Piece, from: number, game: Game): Move[] | undefined;
 
   /**
    * Computes all promotion moves currently available to `pawn` from

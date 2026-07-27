@@ -41,19 +41,6 @@ function captureDirections(color: Color): SquareCoordsOffset[] {
   }
 }
 
-export function enPassantCapturedPawnSquare(moveTo: number, color: Color): number {
-  switch (color) {
-    case Color.RED:
-      return moveTo - 1;
-    case Color.YELLOW:
-      return moveTo + 1;
-    case Color.BLUE:
-      return moveTo - 14;
-    case Color.GREEN:
-      return moveTo + 14;
-  }
-}
-
 export function pawnMoves(pawn: Piece, position: number, board: Board): number[] {
   const moves: number[] = [];
   const currentCoords = parseSquareCoords(position);
