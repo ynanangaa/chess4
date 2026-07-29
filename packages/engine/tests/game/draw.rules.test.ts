@@ -361,14 +361,13 @@ describe('Draw rules', () => {
       playCycle();
       expect(game.isOver()).toBe(false);
 
-      // 2nd return to the starting position: still not a draw.
+      // 2nd return to the starting position: occurence #3, but still not a draw
+      // until RED plays the same forward move with his queen.
       playCycle();
       expect(game.isOver()).toBe(false);
 
-      // 3rd return to the starting position: the position (board + side to
-      // move) has now repeated three times, the draw must be declared and
-      // every active side receives the 10 draw points.
-      playCycle();
+      // RED plays the same forward move with the queen : it's a draw.
+      playMove(game, forward[0][0], forward[0][1]);
       expect(game.isOver()).toBe(true);
       expect(game.getGameState().getStatus()).toBe(GameStatus.OVER);
       expect(game.getPlayer(Color.RED).getScore()).toBe(10);

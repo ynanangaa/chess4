@@ -6,18 +6,16 @@ import {
   type Move,
 } from '@chess4/engine';
 import { Board } from './board/Board';
+import { PlayerStatusBar } from './status/PlayerStatusBar';
+import { ScorePanel } from './status/ScorePanel';
+import { CapturedPiecesTray } from './status/CapturedPiecesTray';
+import { GameOverBanner } from './status/GameOverBanner';
 
 function App() {
   const [game] = useState(
     () => new Game(new DefaultRuleSet(new MoveGenerator()))
   );
 
-  /*
-   * Game/Board are mutated in place by advanceTurn rather than replaced,
-   * so React has no reference change to detect. This counter's only job
-   * is to change on every move, giving React a reason to re-render and
-   * pick up the mutated board state.
-   */
   const [, forceRender] = useReducer((x: number) => x + 1, 0);
 
   const [selectedPieceId, setSelectedPieceId] = useState<string | null>(null);
@@ -34,17 +32,11 @@ function App() {
     const board = game.getBoard();
     const pieceAtSquare = board.getPieceAt(squareId);
 
-    // Clicking the already-selected piece again deselects it.
     if (selectedPieceId && pieceAtSquare?.id === selectedPieceId) {
       clearSelection();
       return;
     }
 
-    /*
-     * Clicking a legal destination plays that exact move. The selected
-     * Move already carries any castling or promotion metadata produced
-     * by game.getLegalMoves().
-     */
     if (selectedPieceId) {
       const move = legalMoves.find(candidate => candidate.to === squareId);
 
@@ -56,52 +48,47 @@ function App() {
       }
     }
 
-    // Select only a piece belonging to the player currently to move.
-    if (
-      pieceAtSquare &&
-      pieceAtSquare.color === game.getCurrentPlayerColor()
-    ) {
+    if (pieceAtSquare && pieceAtSquare.color === game.getCurrentPlayerColor()) {
       setSelectedPieceId(pieceAtSquare.id);
       setLegalMoves(game.getLegalMoves(pieceAtSquare.id));
       return;
     }
 
-    // Empty or irrelevant opponent square: clear any existing selection.
     clearSelection();
   }
 
   const board = game.getBoard();
 
-  const selectedPiece = selectedPieceId
-    ? board.getPiece(selectedPieceId)
-    : undefined;
+  const selectedPiece = selectedPieceId ? board.getPiece(selectedPieceId) : undefined;
+  const selectedSquareId = selectedPiece ? board.getSquareOf(selectedPiece.id) : undefined;
 
-  const selectedSquareId = selectedPiece
-    ? board.getSquareOf(selectedPiece.id)
-    : undefined;
-
-if (import.meta.env.DEV) { // Pour Vite
-  // Ou process.env.NODE_ENV === 'development' pour Webpack/Create-React-App
-  (window as any).debugGame = game;
-  console.log('Objet Game exposé pour le débogage : window.debugGame');
-}
+  if (import.meta.env.DEV) {
+    (window as any).debugGame = game;
+  }
 
   return (
     <div className="min-h-screen bg-slate-900 text-slate-100 flex items-center justify-center p-8">
-      <div className="w-full max-w-3xl">
-        <h1 className="text-2xl font-bold mb-2 text-center">chess4</h1>
+      <div className="w-full max-w-5xl grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-6">
+        <div className="order-2 lg:order-1 flex flex-col">
+          <ScorePanel game={game} />
+          <CapturedPiecesTray game={game} />
+        </div>
 
-        <p className="text-center mb-4 capitalize text-slate-400">
-          {game.isOver() ? 'Game over' : `${game.getCurrentPlayerColor()} to move`}
-        </p>
+        <div className="order-1 lg:order-2">
+          <h1 className="text-2xl font-bold mb-2 text-center">chess4</h1>
 
-        <Board
-          board={board}
-          selectedSquareId={selectedSquareId}
-          selectedColor={selectedPiece?.color}
-          legalDestinations={legalMoves.map(move => move.to)}
-          onSquareClick={handleSquareClick}
-        />
+          <GameOverBanner game={game} />
+
+          <PlayerStatusBar game={game} />
+
+          <Board
+            board={board}
+            selectedSquareId={selectedSquareId}
+            selectedColor={selectedPiece?.color}
+            legalDestinations={legalMoves.map(move => move.to)}
+            onSquareClick={handleSquareClick}
+          />
+        </div>
       </div>
     </div>
   );

@@ -80,21 +80,17 @@ describe('Game integration - full 4-player game replay', () => {
     expect(capturedGreenPawn6?.capturedBy).toBe(Color.YELLOW);
 
     // GREEN is CHECKMATE: its pieces are inactive, but its turn still exists
-    // in the natural rotation and must be advanced explicitly.
+    // in the natural rotation. He is automatically skipped.
     expect(game.isPlayerCheckMated(Color.GREEN)).toBe(true);
-    expect(game.getCurrentPlayerColor()).toBe(Color.GREEN);
     expect(game.getLegalMoves('K-green')).toHaveLength(0);
     expect(game.getLegalMoves('Q-green')).toHaveLength(0);
 
-    expect(game.advanceTurn()).toBe(true);
     expect(game.getCurrentPlayerColor()).toBe(Color.RED);
 
     // --- Round 7 (GREEN is eliminated, so its turn is consumed) ---
     move('N-red-kingside', 5, 12);
     move('blue-2', 10, 3);
     move('N-yellow-kingside', 12, 6);
-    expect(game.getCurrentPlayerColor()).toBe(Color.GREEN);
-    expect(game.advanceTurn()).toBe(true);
     expect(game.getCurrentPlayerColor()).toBe(Color.RED);
 
     // --- Round 8 (GREEN is eliminated, so its turn is consumed) ---
@@ -109,8 +105,6 @@ describe('Game integration - full 4-player game replay', () => {
     expect(capturedRedQueensideRook?.capturedBy).toBe(Color.BLUE);
 
     move('Q-yellow', 12, 10);
-    expect(game.getCurrentPlayerColor()).toBe(Color.GREEN);
-    expect(game.advanceTurn()).toBe(true);
     expect(game.getCurrentPlayerColor()).toBe(Color.RED);
 
     // ---------------------------------------------------------------------

@@ -37,83 +37,103 @@ export abstract class RuleSet {
     protected readonly moveGenerator: MoveGenerator
   ) {}
 
-  /**
-   * Advances the game by a single player's turn, handling three distinct
-   * situations depending on the current player's status:
-   *
-   * 1. **Active player**: `move` must be provided and must belong to a
-   *    piece owned by the current player. The current position is
-   *    recorded for repetition-detection purposes (counted *before* the
-   *    move is applied), the move is applied via {@link RuleSet.applyMove},
-   *    and the turn advances to the **next** player *before*
-   *    {@link RuleSet.applyRulesPostMove} runs — so that post-move rule
-   *    processing (e.g. checkmate/stalemate detection) evaluates the
-   *    player who is now to move, matching standard chess semantics
-   *    ("is the side to move currently mated?").
-   * 2. **Resigned or timed-out player**: no `move` is expected from the
-   *    caller. A random legal king move is chosen and applied on their
-   *    behalf via {@link RuleSet.applyMove} if one exists; otherwise only
-   *    the move clock is incremented.
-   * 3. **Otherwise inactive player** (e.g. eliminated by other means):
-   *    only the move clock is incremented; no move is played.
-   *
-   * For both (2) and (3), {@link RuleSet.applyRulesPostMove} runs *before*
-   * the turn advances, so that mate/stalemate detection is evaluated for
-   * this same player — allowing a future call to recognize once they've
-   * become fully mated and stop attempting to auto-play a king move.
-   *
-   * @remarks
-   * Branch (2) relies on the king being the only piece worth considering
-   * for the auto-play fallback — which in turn relies on the active
-   * {@link RuleSet} implementation having already deactivated a
-   * resigned/timed-out player's non-king pieces on a previous turn (see
-   * e.g. `DefaultRuleSet.updatePlayerPiecesStatus`). A custom `RuleSet`
-   * that does not enforce this invariant should not rely on this
-   * branch's fallback being meaningful.
-   *
-   * @param game - The game to advance.
-   * @param move - The move to play, required only when the current player
-   * is active.
-   * @returns `true` if the turn was successfully advanced; `false` if the
-   * game is already over, or (for an active player) if `move` is missing,
-   * refers to a piece not owned by the current player, or fails to apply.
-   */
-  public advanceTurn(game: Game, move?: Move): boolean {
-    if (game.isOver()) return false;
+/**
+ * Advances the game by processing the current player's turn (a real
+ * move for an active player, or an auto-played/skipped turn for a
+ * resigned, timed-out, checkmated, or stalemated one), then
+ * automatically settles every subsequent player in turn order who
+ * turns out to already be inactive — including a player whose inactive
+ * status is only discoverable as a direct result of this very call
+ * (e.g. a move that delivers checkmate to a color several turns away
+ * from actually being current) — until either a genuinely active
+ * player is reached, or the game ends.
+ *
+ * Checkmate/stalemate for a color can only ever be detected by
+ * evaluating them as `currentPlayerColor` (see
+ * `DefaultRuleSet.updateGameState`). Without this settling step, a
+ * color that becomes mated while one or more *other* already-eliminated
+ * colors sit between them and the mover in turn order would never get
+ * re-evaluated until it's their turn — but requiring a move from
+ * someone with none available is a deadlock. This method's loop closes
+ * that gap: callers never need to invoke `advanceTurn` repeatedly just
+ * to skip past already-finished players.
+ *
+ * @param game - The game to advance.
+ * @param move - The move to play, required only when the current player
+ * is active.
+ * @returns `true` if the turn was successfully advanced; `false` if the
+ * game is already over, or (for an active player) if `move` is missing,
+ * refers to a piece not owned by the current player, or fails to apply.
+ */
+public advanceTurn(game: Game, move?: Move): boolean {
+  if (game.isOver()) return false;
 
-    const currentPlayer = game.getCurrentPlayerColor();
+  const currentPlayer = game.getCurrentPlayerColor();
 
-    if (game.isPlayerActive(currentPlayer)) {
-      if (!move) return false;
+  if (game.isPlayerActive(currentPlayer)) {
+    if (!move) return false;
 
-      const movedPiece = game.getBoard().getPiece(move.pieceId);
-      if (!movedPiece || movedPiece.color !== currentPlayer) return false;
-      game.incrementPositionCount(
-        this.computePositionKey(game)
-      );
-      if (!this.applyMove(move, game)) return false;
+    const movedPiece = game.getBoard().getPiece(move.pieceId);
+    if (!movedPiece || movedPiece.color !== currentPlayer) return false;
 
-      game.advanceCurrentPlayer();
-      this.applyRulesPostMove(game);
+    game.incrementPositionCount(this.computePositionKey(game));
+    if (!this.applyMove(move, game)) return false;
 
-      return true;
-    } else if (game.isPlayerResignedOrTimedOut(currentPlayer)) {
-      const kingMove = this.chooseRandomKingMove(currentPlayer, game);
-
-      if (kingMove) {
-        this.applyMove(kingMove, game);
-      } else {
-        game.incrementMoveClock();
-      }
-    } else {
-      game.incrementMoveClock();
-    }
-
-    this.applyRulesPostMove(game);
     game.advanceCurrentPlayer();
-
-    return true;
+  } else {
+    const hasKingMoved = this.autoPlayOrSkip(currentPlayer, game);
+    if (hasKingMoved) game.advanceCurrentPlayer();
   }
+
+  this.settleUpcomingTurns(game);
+
+  return true;
+}
+
+/**
+ * Repeatedly evaluates (via `applyRulesPostMove`) whoever is now
+ * `currentPlayerColor`, auto-skipping them and moving on if they turn
+ * out to be inactive, and stopping as soon as either an active player
+ * is found or the game ends.
+ *
+ * Bounded by the player count as a defensive guard against an
+ * unexpected infinite loop; in practice the game always ends or an
+ * active player is found within at most one full round.
+ */
+private settleUpcomingTurns(game: Game): void {
+  let guard = 0;
+
+  while (guard < RuleSet.PLAYER_COLORS.length) {
+    this.applyRulesPostMove(game);
+
+    if (game.isOver()) return;
+
+    const current = game.getCurrentPlayerColor();
+    if (game.isPlayerActive(current)) return;
+
+    this.autoPlayOrSkip(current, game);
+    game.advanceCurrentPlayer();
+    guard += 1;
+  }
+}
+
+/**
+ * Handles one inactive player's turn: a resigned/timed-out player gets
+ * a random legal king move if one exists, otherwise (and for a
+ * checkmated/stalemated player) only the move clock is incremented.
+ */
+private autoPlayOrSkip(color: Color, game: Game): boolean {
+  if (game.isPlayerResignedOrTimedOut(color)) {
+    const kingMove = this.chooseRandomKingMove(color, game);
+    if (kingMove) {
+      this.applyMove(kingMove, game);
+      return true;
+    }
+  }
+
+  game.incrementMoveClock();
+  return false;
+}
 
   /**
    * Applies a move to the game's board and records its effects (captured
@@ -780,7 +800,7 @@ export abstract class RuleSet {
     if (window.length === 0) return undefined;
 
     for (let i = window.length - 1; i >= 0; i--) {
-      if (!this.isStillMatedWithoutMove(checkedColor, game, window, i)) {
+      if (window[i].check && !this.isStillMatedWithoutMove(checkedColor, game, window, i)) {
         return this.resolveMoveColor(window[i], game);
       }
     }
@@ -855,8 +875,6 @@ export abstract class RuleSet {
    * times, based on {@link RuleSet.computePositionKey}.
    */
   public isDrawByTripleRepetition(game: Game): boolean {
-    return game.getPositionCount(
-      this.computePositionKey(game)
-    ) >= 3;
+    return game.getCurrentPositionCount() >= 3;
   }
 }

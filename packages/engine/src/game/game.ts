@@ -29,6 +29,7 @@ export class Game {
   private players: Player[];
   private capturedPieces = new Map<string, CapturedPiece>();
   private positionCounts = new Map<string, number>();
+  private currentPositionKey: string;
 
   /**
    * Creates a game.
@@ -53,6 +54,7 @@ export class Game {
       new Player("P4", Color.GREEN)
     ];
     this.gameState = new GameState();
+    this.currentPositionKey = this.ruleSet.computePositionKey(this);
   }
 
   public destroy(): void {
@@ -98,6 +100,15 @@ export class Game {
     return this.board;
   }
 
+  /**
+   * Returns every piece captured so far in the game.
+   *
+   * The returned array is a copy; mutating it does not affect this game.
+   */
+  public getAllCapturedPieces(): CapturedPiece[] {
+    return Array.from(this.capturedPieces.values());
+  }
+
   public getCapturedPiece(id: string): CapturedPiece | undefined {
     return this.capturedPieces.get(id);
   }
@@ -134,8 +145,8 @@ export class Game {
     return this.gameState.getPlayerStatus(color);
   }
 
-  public getPositionCount(positionKey: string): number {
-    return this.positionCounts.get(positionKey) ?? 0;
+  public getCurrentPositionCount(): number {
+    return this.positionCounts.get(this.currentPositionKey) ?? 0;
   }
 
   public getLegalMoves(pieceId: string): Move[] {
@@ -160,6 +171,7 @@ export class Game {
   }
 
   public incrementPositionCount(positionKey: string): void {
+    this.currentPositionKey = positionKey;
     const n = this.positionCounts.get(positionKey) ?? 0;
     this.positionCounts.set(positionKey, n + 1);
   }
