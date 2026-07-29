@@ -31,22 +31,22 @@ describe('Board', () => {
     const greenPiece = greenPieces[0];
 
     expect(board.getPiece(redPiece.id)).toEqual(redPiece);
-    expect(board.getPositionOf(redPiece.id)).toBe(redPositions[0]);
+    expect(board.getSquareOf(redPiece.id)).toBe(redPositions[0]);
     expect(board.getPieceAt(redPositions[0])).toEqual(redPiece);
     expect(board.getOccupiedSquares().get(redPositions[0])).toBe(redPiece.id);
 
     expect(board.getPiece(bluePiece.id)).toEqual(bluePiece);
-    expect(board.getPositionOf(bluePiece.id)).toBe(bluePositions[0]);
+    expect(board.getSquareOf(bluePiece.id)).toBe(bluePositions[0]);
     expect(board.getPieceAt(bluePositions[0])).toEqual(bluePiece);
     expect(board.getOccupiedSquares().get(bluePositions[0])).toBe(bluePiece.id);
 
     expect(board.getPiece(yellowPiece.id)).toEqual(yellowPiece);
-    expect(board.getPositionOf(yellowPiece.id)).toBe(yellowPositions[0]);
+    expect(board.getSquareOf(yellowPiece.id)).toBe(yellowPositions[0]);
     expect(board.getPieceAt(yellowPositions[0])).toEqual(yellowPiece);
     expect(board.getOccupiedSquares().get(yellowPositions[0])).toBe(yellowPiece.id);
 
     expect(board.getPiece(greenPiece.id)).toEqual(greenPiece);
-    expect(board.getPositionOf(greenPiece.id)).toBe(greenPositions[0]);
+    expect(board.getSquareOf(greenPiece.id)).toBe(greenPositions[0]);
     expect(board.getPieceAt(greenPositions[0])).toEqual(greenPiece);
     expect(board.getOccupiedSquares().get(greenPositions[0])).toBe(greenPiece.id);
   });
@@ -90,22 +90,22 @@ describe('Board', () => {
     board.placePiece(yellowPawn.id, newYellowPosition);
     board.placePiece(greenPawn.id, newGreenPosition);
 
-    expect(board.getPositionOf(redPawn.id)).toBe(newRedPosition);
+    expect(board.getSquareOf(redPawn.id)).toBe(newRedPosition);
     expect(board.getPieceAt(newRedPosition)).toEqual(redPawn);
     expect(board.isOccupied(newRedPosition)).toBe(true);
     expect(board.isOccupied(redInitial)).toBe(false);
 
-    expect(board.getPositionOf(bluePawn.id)).toBe(newBluePosition);
+    expect(board.getSquareOf(bluePawn.id)).toBe(newBluePosition);
     expect(board.getPieceAt(newBluePosition)).toEqual(bluePawn);
     expect(board.isOccupied(newBluePosition)).toBe(true);
     expect(board.isOccupied(blueInitial)).toBe(false);
 
-    expect(board.getPositionOf(yellowPawn.id)).toBe(newYellowPosition);
+    expect(board.getSquareOf(yellowPawn.id)).toBe(newYellowPosition);
     expect(board.getPieceAt(newYellowPosition)).toEqual(yellowPawn);
     expect(board.isOccupied(newYellowPosition)).toBe(true);
     expect(board.isOccupied(yellowInitial)).toBe(false);
 
-    expect(board.getPositionOf(greenPawn.id)).toBe(newGreenPosition);
+    expect(board.getSquareOf(greenPawn.id)).toBe(newGreenPosition);
     expect(board.getPieceAt(newGreenPosition)).toEqual(greenPawn);
     expect(board.isOccupied(newGreenPosition)).toBe(true);
     expect(board.isOccupied(greenInitial)).toBe(false);

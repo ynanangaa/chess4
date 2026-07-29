@@ -3,7 +3,6 @@ import { describe, expect, test } from '@jest/globals';
 import {
   Color,
   parseSquareId,
-  PlayerState
 } from '../../src';
 import { buildKing, buildQueen } from "../../src/utils/utils";
 import { createClassicGame } from '../test-utils';
@@ -31,8 +30,8 @@ describe('Game turn advancement', () => {
     expect(game.advanceTurn()).toBe(true);
     expect(game.getCurrentPlayerColor()).toBe(Color.BLUE);
     expect(game.getHistory()).toHaveLength(1);
-    expect(game.getBoard().getPositionOf(redKing.id)).not.toBe(redStart);
-    expect(game.getPlayerStates(Color.RED)).toContain(PlayerState.RESIGNED);
+    expect(game.getBoard().getSquareOf(redKing.id)).not.toBe(redStart);
+    expect(game.isPlayerResignedOrTimedOut(Color.RED)).toBe(true);
   });
 
   test('keeps resignation information when the wandering king is later stalemated', () => {
@@ -57,8 +56,8 @@ describe('Game turn advancement', () => {
 
     expect(game.advanceTurn()).toBe(true);
 
-    expect(game.getPlayerStates(Color.RED)).toContain(PlayerState.RESIGNED);
-    expect(game.getPlayerStates(Color.RED)).toContain(PlayerState.STALEMATE);
+    expect(game.isPlayerResignedOrTimedOut(Color.RED)).toBe(true);
+    expect(game.isPlayerStalled(Color.RED)).toBe(true);
     expect(game.getPlayer(Color.RED).getScore()).toBe(0);
     expect(game.getPlayer(Color.BLUE).getScore()).toBe(10);
     expect(game.getPlayer(Color.YELLOW).getScore()).toBe(10);

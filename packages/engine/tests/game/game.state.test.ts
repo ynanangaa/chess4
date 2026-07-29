@@ -6,7 +6,6 @@ import {
   GameStatus,
   parseSquareId,
   PieceType,
-  PlayerState
 } from '../../src';
 import { 
   buildDuplicatePiece, 
@@ -66,10 +65,16 @@ describe('Game state transitions', () => {
     const state = game.getGameState();
 
     expect(state.getStatus()).toBe(GameStatus.RUNNING);
-    expect(state.getPlayerState(Color.RED)).toBe(PlayerState.CHECK);
-    expect(state.getPlayerState(Color.BLUE)).toBe(PlayerState.NORMAL);
-    expect(state.getPlayerState(Color.YELLOW)).toBe(PlayerState.NORMAL);
-    expect(state.getPlayerState(Color.GREEN)).toBe(PlayerState.NORMAL);
+    expect(game.isPlayerInCheck(Color.RED)).toBe(true);
+
+    expect(game.isPlayerActive(Color.BLUE)).toBe(true);
+    expect(game.isPlayerInCheck(Color.BLUE)).toBe(false);
+
+    expect(game.isPlayerActive(Color.YELLOW)).toBe(true);
+    expect(game.isPlayerInCheck(Color.YELLOW)).toBe(false);
+
+    expect(game.isPlayerActive(Color.GREEN)).toBe(true);
+    expect(game.isPlayerInCheck(Color.GREEN)).toBe(false);
   });
 
   test('detects checkmate', () => {
@@ -100,7 +105,7 @@ describe('Game state transitions', () => {
 
     expect(queenMove).toBeDefined();
     expect(game.advanceTurn(queenMove!)).toBe(true);
-    expect(game.getGameState().getPlayerState(Color.RED)).toBe(PlayerState.CHECKMATE);
+    expect(game.isPlayerCheckMated(Color.RED)).toBe(true);
     expect(game.getLegalMoves(redBishop.id)).toEqual([]);
     expect(game.getLegalMoves(redKing.id)).toEqual([]);
   });
@@ -130,7 +135,7 @@ describe('Game state transitions', () => {
     expect(queenMove).toBeDefined();
     expect(game.advanceTurn(queenMove!)).toBe(true);
     expect(game.getLegalMoves(redKing.id)).toEqual([]);
-    expect(game.getGameState().getPlayerState(Color.RED)).toBe(PlayerState.STALEMATE);
+    expect(game.isPlayerStalled(Color.RED)).toBe(true);
   });
 
   test("delays checkmate until the checked player's turn", () => {
@@ -175,7 +180,7 @@ describe('Game state transitions', () => {
     expect(game.advanceTurn(queenMove!)).toBe(true);
 
     // RED remains in check until its next turn.
-    expect(game.getGameState().getPlayerState(Color.RED)).toBe(PlayerState.CHECK);
+    expect(game.isPlayerInCheck(Color.RED)).toBe(true);
 
     // YELLOW plays a neutral move.
     const yellowMove = findMoveTo(game, yellowKnight.id, parseSquareId(10, 10));
@@ -183,7 +188,7 @@ describe('Game state transitions', () => {
     expect(yellowMove).toBeDefined();
     expect(game.advanceTurn(yellowMove!)).toBe(true);
 
-    expect(game.getGameState().getPlayerState(Color.RED)).toBe(PlayerState.CHECK);
+    expect(game.isPlayerInCheck(Color.RED)).toBe(true);
 
     // GREEN also plays a neutral move.
     const greenMove = findMoveTo(game, greenRook.id, parseSquareId(2, 11));
@@ -192,7 +197,7 @@ describe('Game state transitions', () => {
     expect(game.advanceTurn(greenMove!)).toBe(true);
 
     // RED's turn begins, so the checkmate is now confirmed.
-    expect(game.getGameState().getPlayerState(Color.RED)).toBe(PlayerState.CHECKMATE);
+    expect(game.isPlayerCheckMated(Color.RED)).toBe(true);
     expect(game.getLegalMoves(redBishop.id)).toEqual([]);
     expect(game.getLegalMoves(redKing.id)).toEqual([]);
   });
@@ -236,7 +241,7 @@ describe('Game state transitions', () => {
     expect(game.advanceTurn(queenMove!)).toBe(true);
 
     // RED is still considered active until its turn.
-    expect(game.getGameState().getPlayerState(Color.RED)).toBe(PlayerState.NORMAL);
+    expect(game.isPlayerActive(Color.RED)).toBe(true);
 
     const yellowMove = findMoveTo(game, yellowKnight.id, parseSquareId(10, 10));
 
@@ -249,7 +254,7 @@ describe('Game state transitions', () => {
     expect(game.advanceTurn(greenMove!)).toBe(true);
 
     // RED's turn begins, so the stalemate is now confirmed.
-    expect(game.getGameState().getPlayerState(Color.RED)).toBe(PlayerState.STALEMATE);
+    expect(game.isPlayerStalled(Color.RED)).toBe(true);
     expect(game.getLegalMoves(redKing.id)).toEqual([]);
   });
 
@@ -297,7 +302,7 @@ describe('Game state transitions', () => {
     expect(queenMove).toBeDefined();
     expect(game.advanceTurn(queenMove!)).toBe(true);
 
-    expect(game.getGameState().getPlayerState(Color.RED)).toBe(PlayerState.CHECK);
+    expect(game.isPlayerInCheck(Color.RED)).toBe(true);
 
     // YELLOW removes the mating threat.
     const yellowMove = findMoveTo(game, yellowKnight.id, parseSquareId(2, 7));
@@ -311,8 +316,9 @@ describe('Game state transitions', () => {
     expect(greenMove).toBeDefined();
     expect(game.advanceTurn(greenMove!)).toBe(true);
 
-    // RED is no longer checkmated when its turn begins.
-    expect(game.getGameState().getPlayerState(Color.RED)).toBe(PlayerState.NORMAL);
+    // RED is no longer in check when its turn begins.
+    expect(game.isPlayerInCheck(Color.RED)).toBe(false);
+    expect(game.isPlayerActive(Color.RED)).toBe(true);
   });
 });
 
@@ -320,8 +326,15 @@ function expectRunningNormalState(game: Game): void {
   const state = game.getGameState();
 
   expect(state.getStatus()).toBe(GameStatus.RUNNING);
-  expect(state.getPlayerState(Color.RED)).toBe(PlayerState.NORMAL);
-  expect(state.getPlayerState(Color.BLUE)).toBe(PlayerState.NORMAL);
-  expect(state.getPlayerState(Color.YELLOW)).toBe(PlayerState.NORMAL);
-  expect(state.getPlayerState(Color.GREEN)).toBe(PlayerState.NORMAL);
+  expect(game.isPlayerInCheck(Color.RED)).toBe(false);
+  expect(game.isPlayerActive(Color.RED)).toBe(true);
+
+  expect(game.isPlayerInCheck(Color.BLUE)).toBe(false);
+  expect(game.isPlayerActive(Color.BLUE)).toBe(true);
+
+  expect(game.isPlayerInCheck(Color.YELLOW)).toBe(false);
+  expect(game.isPlayerActive(Color.YELLOW)).toBe(true);
+
+  expect(game.isPlayerInCheck(Color.GREEN)).toBe(false);
+  expect(game.isPlayerActive(Color.GREEN)).toBe(true);
 }

@@ -1,28 +1,21 @@
 import { Board } from "../board";
-import { Color, Piece, SquareCoordsOffset } from "../types";
-import { slidingMoves } from "../utils/utils";
+import { Color, Piece } from "../types";
+import { BOARD_SIZE, ROOK_DIRECTIONS, slideDestinations } from "./move-geometry";
 import { CastleSide } from "./move";
-
-const ROOK_DIRECTION_OFFSETS: SquareCoordsOffset[] = [
-  { rowDelta: -1, colDelta: 0 },
-  { rowDelta: 1, colDelta: 0 },
-  { rowDelta: 0, colDelta: -1 },
-  { rowDelta: 0, colDelta: 1 }
-];
 
 export function rookCastleDirectionOffset(color: Color, castleSide: CastleSide): number {
   if (
     (color === Color.RED && castleSide === "kingside") ||
     (color === Color.YELLOW && castleSide === "queenside")
   ) {
-    return -14;
+    return -BOARD_SIZE;
   }
 
   if (
     (color === Color.RED && castleSide === "queenside") ||
     (color === Color.YELLOW && castleSide === "kingside")
   ) {
-    return 14;
+    return BOARD_SIZE;
   }
 
   if (
@@ -35,10 +28,10 @@ export function rookCastleDirectionOffset(color: Color, castleSide: CastleSide):
   return 1;
 }
 
-export function rookDirectionOffsets(): SquareCoordsOffset[] {
-  return [...ROOK_DIRECTION_OFFSETS];
+export function rookDirections(): number[] {
+  return [...ROOK_DIRECTIONS];
 }
 
-export function rookMoves(rook: Piece, board: Board): number[] {
-  return slidingMoves(rook.id, board, ROOK_DIRECTION_OFFSETS);
+export function rookMoves(rook: Piece, from: number, board: Board): number[] {
+  return slideDestinations(rook, from, board, ROOK_DIRECTIONS);
 }

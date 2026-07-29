@@ -11,6 +11,5 @@ export {
   toSquareId,
   parseCol,
   parseRow,
-  inverseParseCol,
-  translateSquareCoords
+  inverseParseCol
 } from './utils';

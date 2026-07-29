@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import type { Board as EngineBoard, Color } from '@chess4/engine';
+import type { ReadonlyBoard as EngineBoard, Color } from '@chess4/engine';
 import { buildAllSquares, toGridPosition, BOARD_SIZE } from './boardGeometry';
 import { Piece } from '../pieces/Piece';
 

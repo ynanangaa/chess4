@@ -6,10 +6,7 @@ import {
   Game,
   MoveGenerator,
   parseSquareId,
-  PieceType,
-  PlayerState
 } from '../../src';
-import { createDuplicatePieceId, createPieceId } from "../../src/utils/utils";
 import { findMoveTo } from '../test-utils';
 
 describe('Game integration - full 4-player game replay', () => {
@@ -84,10 +81,10 @@ describe('Game integration - full 4-player game replay', () => {
 
     // GREEN is CHECKMATE: its pieces are inactive, but its turn still exists
     // in the natural rotation and must be advanced explicitly.
-    expect(game.getPlayerState(Color.GREEN)).toBe(PlayerState.CHECKMATE);
+    expect(game.isPlayerCheckMated(Color.GREEN)).toBe(true);
     expect(game.getCurrentPlayerColor()).toBe(Color.GREEN);
-    expect(game.getBoard().getPiece('K-green')?.active).toBe(false);
-    expect(game.getBoard().getPiece('Q-green')?.active).toBe(false);
+    expect(game.getLegalMoves('K-green')).toHaveLength(0);
+    expect(game.getLegalMoves('Q-green')).toHaveLength(0);
 
     expect(game.advanceTurn()).toBe(true);
     expect(game.getCurrentPlayerColor()).toBe(Color.RED);
@@ -122,15 +119,9 @@ describe('Game integration - full 4-player game replay', () => {
     game.resignPlayer(Color.RED, true);
     expect(game.advanceTurn()).toBe(true);
 
-    expect(
-      game.getBoard().getPiece(createPieceId(Color.RED, PieceType.KING))!.active
-    ).toBe(true);
-    expect(
-      game.getBoard().getPiece(createPieceId(Color.RED, PieceType.QUEEN))!.active
-    ).toBe(false);
-    expect(
-      game.getBoard().getPiece(createDuplicatePieceId(Color.RED, PieceType.KNIGHT, true))!.active
-    ).toBe(false);
+    expect(game.getLegalMoves('K-red').length).toBeGreaterThan(0);
+    expect(game.getLegalMoves('Q-red')).toHaveLength(0);
+    expect(game.getLegalMoves('N-red-kingside')).toHaveLength(0);
     expect(game.getCurrentPlayerColor()).toBe(Color.BLUE);
     expect(game.isPlayerActive(Color.RED)).toBe(false);
     expect(game.isPlayerActive(Color.GREEN)).toBe(false);

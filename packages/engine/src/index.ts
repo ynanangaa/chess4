@@ -1,4 +1,4 @@
-export { Board } from './board';
+export { Board, type BoardSetup, type ReadonlyBoard } from './board';
 export { Game, GameState } from './game';
 // GameState is useful for tracking turn clock/player state lists
 export * from './moves';

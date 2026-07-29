@@ -2,8 +2,9 @@ import { Board } from "../board";
 import { Game } from "../game";
 import { Move, MoveGenerator } from "../moves";
 import { castleDirectionOffset } from "../moves/king-moves";
+import { stepInDirection } from "../moves/move-geometry";
 import { forwardDirection, pawnMoves } from "../moves/pawn-moves";
-import { Color, GameStatus, Piece, PieceType, PlayerState } from "../types";
+import { Color, GameStatus, Piece, PieceType } from "../types";
 import { kingInitialSquareId, rookInitialSquareId } from "../utils/utils";
 import { RuleSet } from "./rule-set";
 
@@ -117,8 +118,7 @@ export class DefaultRuleSet extends RuleSet {
    * eliminated by other means), or if the capturing player is not
    * currently active.
    */
-  protected awardCapturePoints (_game: Game): void {
-
+  protected awardCapturePoints(_game: Game): void {
     const history = _game.getHistory();
     const lastMove = history[history.length - 1];
     const capturedPieceId = lastMove.capture;
@@ -126,18 +126,13 @@ export class DefaultRuleSet extends RuleSet {
     if (capturedPieceId === undefined) return;
 
     const capturedPiece = _game.getCapturedPiece(capturedPieceId)!;
-    if(!capturedPiece.active) return;
+    if (!capturedPiece.wasActive) return;   // was: if (!capturedPiece.active) return;
 
-    if(!_game.isPlayerActive(capturedPiece.capturedBy)) return;
+    if (!_game.isPlayerActive(capturedPiece.capturedBy)) return;
 
-    const awardedPoints = capturedPiece.points? capturedPiece.points: 0;
+    const awardedPoints = capturedPiece.points ? capturedPiece.points : 0;
 
-    this.awardPlayerPoints(
-      capturedPiece.capturedBy,
-      awardedPoints,
-      _game
-    ); 
-
+    this.awardPlayerPoints(capturedPiece.capturedBy, awardedPoints, _game);
   }
 
   /**
@@ -186,24 +181,23 @@ export class DefaultRuleSet extends RuleSet {
    * {@link DefaultRuleSet.markMateAwardPending}.
    */
   protected awardMatePoints(game: Game): void {
-      for (const color of DefaultRuleSet.PLAYER_COLORS) {
-        if (
-          game.isPlayerCheckMated(color) &&
-          this.markMateAwardPending(color, PlayerState.CHECKMATE)
-        ) {
-          this.awardCheckmatePoints(color, game);
-        }
-        if (
-          game.isPlayerStalled(color) &&
-          this.markMateAwardPending(color, PlayerState.STALEMATE)
-        ) {
-
-          if(!game.isPlayerResignedOrTimedOut(color))
-            this.awardPlayerPoints(color, 20, game);
-
-          this.awardStalematePoints(color, game);
-        }
+    for (const color of DefaultRuleSet.PLAYER_COLORS) {
+      if (
+        game.isPlayerCheckMated(color) &&
+        this.markMateAwardPending(color, 'checkmate')
+      ) {
+        this.awardCheckmatePoints(color, game);
       }
+      if (
+        game.isPlayerStalled(color) &&
+        this.markMateAwardPending(color, 'stalemate')
+      ) {
+        if (!game.isPlayerResignedOrTimedOut(color))
+          this.awardPlayerPoints(color, 20, game);
+
+        this.awardStalematePoints(color, game);
+      }
+    }
   }
 
   /**
@@ -215,8 +209,8 @@ export class DefaultRuleSet extends RuleSet {
    * @returns `true` the first time this (color, state) pair is seen
    * (and records it), `false` on every subsequent call for the same pair.
    */
-  private markMateAwardPending(color: Color, state: PlayerState): boolean {
-    const key = `${color}-${state}`;
+  private markMateAwardPending(color: Color, kind: 'checkmate' | 'stalemate'): boolean {
+    const key = `${color}-${kind}`;
 
     if (this.awardedMateStates.has(key)) return false;
 
@@ -296,11 +290,10 @@ export class DefaultRuleSet extends RuleSet {
    * an inactive king cannot be "in check."
    */
   protected isKingInCheck(board: Board, kingColor: Color): boolean {
-    const kingPos = board.getPositionOf(`K-${kingColor}`);
+    const kingPos = board.getKingSquare(kingColor);
     if (kingPos === undefined) return false;
-
-    const king = board.getPieceAt(kingPos);
-    if (!king || !king.active) return false;
+    const king = board.getPieceAt(kingPos)!;
+    if (!board.isPieceActive(king.id)) return false;
 
     for (const color of DefaultRuleSet.PLAYER_COLORS) {
       if (color === kingColor) continue;
@@ -330,7 +323,7 @@ export class DefaultRuleSet extends RuleSet {
     game: Game,
     moves: Move[]
   ): Move[] {
-    const board = game.getBoard();
+    const board = game.getBoard() as Board;
     const promotionMoves = this.getPromotionMoves(pawn, from, board);
     const doubleStepMove = this.getPawnDoubleStep(pawn, from, board);
 
@@ -355,12 +348,13 @@ export class DefaultRuleSet extends RuleSet {
    * eligible or the path isn't clear.
    */
   private getPawnDoubleStep(pawn: Piece, from: number, board: Board): Move | undefined {
-    const forward = forwardDirection(pawn.color);
-
     if (!this.canDoubleSteps(pawn, from)) return undefined;
 
-    const oneStepSquare = from + forward.rowDelta + 14 * forward.colDelta;
-    const doubleStepSquare = oneStepSquare + forward.rowDelta + 14 * forward.colDelta;
+    const forward = forwardDirection(pawn.color);
+    const oneStepSquare = stepInDirection(from, forward);
+    const doubleStepSquare = stepInDirection(from, forward, 2);
+
+    if (oneStepSquare === undefined || doubleStepSquare === undefined) return undefined;
 
     if (
       board.isValidSquare(oneStepSquare) &&
@@ -397,21 +391,19 @@ export class DefaultRuleSet extends RuleSet {
    * misbehaves near edge-case rook distances.
    */
   public getCastleMoves(player: Color, game: Game): Move[] {
-    if (game.getPlayerState(player) === PlayerState.CHECK ||
-        game.isPlayerResignedOrTimedOut(player)
-    ) {
+    if (game.isPlayerInCheck(player) || game.isPlayerResignedOrTimedOut(player)) {
       return [];
     }
 
     const castle: Move[] = [];
-    const board = game.getBoard();
+    const board = game.getBoard() as Board;
     const hasKingMoved = game.hasPieceMoved(`K-${player}`);
-    const from = board.getPositionOf(`K-${player}`)!;
+    const from = board.getSquareOf(`K-${player}`)!;
 
     for (const kingSide of [true, false]) {
       const side = kingSide ? "kingside" : "queenside";
       const hasRookMoved = game.hasPieceMoved(`R-${player}-${side}`);
-      const rookPos = board.getPositionOf(`R-${player}-${side}`)!;
+      const rookPos = board.getSquareOf(`R-${player}-${side}`)!;
 
       if (
         from === kingInitialSquareId(player) &&
@@ -419,7 +411,13 @@ export class DefaultRuleSet extends RuleSet {
         rookPos === rookInitialSquareId(player, kingSide) &&
         !hasRookMoved
       ) {
-        const allOpponentsMoves = this.moveGenerator.generateAllOpponentsMoves(board, player);
+        const allOpponentsMoves = this.moveGenerator.
+          generateAllOpponentsMoves(
+            board,
+            DefaultRuleSet.PLAYER_COLORS.filter(
+              c => player !== c
+            )
+          );
         const direction = castleDirectionOffset(player, kingSide);
         const oneStep = from + direction;
         const doubleStep = oneStep + direction;
@@ -529,7 +527,7 @@ export class DefaultRuleSet extends RuleSet {
    */
   public updateGameState(game: Game): void {
     if (game.isOver()) return;
-    
+
     const history = game.getHistory();
     if (history.length > this.processedHistoryLength) {
       const lastMove = history[history.length - 1];
@@ -543,47 +541,33 @@ export class DefaultRuleSet extends RuleSet {
 
       this.processedHistoryLength = history.length;
     }
-    
+
     const currentPlayerColor = game.getCurrentPlayerColor();
     if (
-      game.hasPlayerState(currentPlayerColor, PlayerState.CHECKMATE) ||
-      game.hasPlayerState(currentPlayerColor, PlayerState.STALEMATE)
+      game.isPlayerCheckMated(currentPlayerColor) ||
+      game.isPlayerStalled(currentPlayerColor)
     ) {
       return;
     }
 
-    // A color with no king at all on the board cannot be meaningfully
-    // evaluated for check/checkmate/stalemate. This should never occur in
-    // real gameplay — a king is only ever deactivated, never removed (see
-    // Board.setPlayerPiecesInactive) — but guards against artificially
-    // constructed positions (e.g. test setups that omit a color's pieces
-    // entirely) which would otherwise trigger a vacuous "no legal moves"
-    // verdict via isPlayerMate's `![].some(...)` behavior on an empty
-    // piece list, spuriously classifying an absent player as stalemated.
-    if (game.getBoard().getPositionOf(`K-${currentPlayerColor}`) === undefined) {
+    if (game.getBoard().getSquareOf(`K-${currentPlayerColor}`) === undefined) {
       return;
     }
 
-    // Reset all active CHECK states before recomputing them.
+    // Recompute every color's check flag directly from the board — no
+    // separate reset pass needed now that inCheck is a plain boolean.
+    const checkedColors = this.getCheckedKings(game.getBoard() as Board);
+
     for (const color of DefaultRuleSet.PLAYER_COLORS) {
-      if (game.hasPlayerState(color, PlayerState.CHECK)) {
-        game.setPlayerState(color, PlayerState.NORMAL);
-      }
-    }
-
-    // Recompute all active checks from the current board position.
-    const checkedColors = this.getCheckedKings(game.getBoard());
-
-    for (const color of checkedColors) {
-      game.setPlayerState(color, PlayerState.CHECK);
+      game.setPlayerInCheck(color, checkedColors.has(color));
     }
 
     if (!this.isPlayerMate(currentPlayerColor, game)) return;
 
     if (checkedColors.has(currentPlayerColor)) {
-      game.setPlayerState(currentPlayerColor, PlayerState.CHECKMATE);
+      game.setPlayerCheckmated(currentPlayerColor);
     } else {
-      game.setPlayerState(currentPlayerColor, PlayerState.STALEMATE);
+      game.setPlayerStalemated(currentPlayerColor);
     }
   }
 
@@ -691,7 +675,7 @@ export class DefaultRuleSet extends RuleSet {
         }
 
         const playerPieces = remainingPieces.get(color)!;
-        if(piece.active) {
+        if (game.getBoard().isPieceActive(piece.id)) {
           playerPieces.push(piece);
         }
         remainingPieces.set(color, playerPieces);
@@ -699,7 +683,7 @@ export class DefaultRuleSet extends RuleSet {
         if (piece.type === PieceType.KING) {
           const kingMoves = this.moveGenerator.generateMovesForPiece(
             piece,
-            game.getBoard()
+            game.getBoard() as Board
           );
 
           remainingKingsMovesLength.set(color, kingMoves.length);

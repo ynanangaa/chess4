@@ -6,18 +6,12 @@ import {
   Piece,
   Color,
   SquareCoords,
-  PlayerState
 } from '../src';
 
 type InitialPosition = [Piece[], number[]];
 
 export function createClassicGame(initialPosition: InitialPosition): Game {
   return new Game(new DefaultRuleSet(new MoveGenerator()), initialPosition);
-}
-
-export function resignWithoutKing(color: Color, game: Game): void {
-  game.setPlayerState(color, PlayerState.RESIGNED);
-  game.setPlayerInactive(color);
 }
 
 export function findMoveTo(game: Game, pieceId: string, to: number): Move | undefined {

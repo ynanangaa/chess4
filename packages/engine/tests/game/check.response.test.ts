@@ -4,7 +4,6 @@ import {
   Color,
   parseSquareId,
   PieceType,
-  PlayerState
 } from '../../src';
 import { buildDuplicatePiece, buildKing } from "../../src/utils/utils";
 
@@ -39,7 +38,7 @@ describe('Game check responses', () => {
 
     expect(greenRookMove).toBeDefined();
     expect(game.advanceTurn(greenRookMove!)).toBe(true);
-    expect(game.getGameState().getPlayerState(Color.RED)).toBe(PlayerState.CHECK);
+    expect(game.isPlayerInCheck(Color.RED)).toBe(true);
 
     const bishopMoves = game.getLegalMoves(redBishop.id);
 
@@ -83,7 +82,7 @@ describe('Game check responses', () => {
 
     expect(greenKnightMove).toBeDefined();
     expect(game.advanceTurn(greenKnightMove!)).toBe(true);
-    expect(game.getGameState().getPlayerState(Color.RED)).toBe(PlayerState.CHECK);
+    expect(game.isPlayerInCheck(Color.RED)).toBe(true);
     expect(game.getLegalMoves(redBishop.id)).toEqual([]);
     expect(game.getLegalMoves(redKnight.id)).toContainEqual(
       expect.objectContaining({ to: parseSquareId(3, 8) })
@@ -122,7 +121,7 @@ describe('Game check responses', () => {
 
     expect(bishopMove).toBeDefined();
     expect(game.advanceTurn(bishopMove!)).toBe(true);
-    expect(game.getGameState().getPlayerState(Color.RED)).toBe(PlayerState.CHECK);
+    expect(game.isPlayerInCheck(Color.RED)).toBe(true);
     expect(game.getLegalMoves(redKnight.id)).toEqual([]);
     expect(game.getLegalMoves(redKing.id).length).toBeGreaterThan(0);
   });
@@ -151,7 +150,7 @@ describe('Game check responses', () => {
 
     expect(rookMove).toBeDefined();
     expect(game.advanceTurn(rookMove!)).toBe(true);
-    expect(game.getGameState().getPlayerState(Color.YELLOW)).toBe(PlayerState.CHECK);
+    expect(game.isPlayerInCheck(Color.YELLOW)).toBe(true);
 
     const kingMoves = game.getLegalMoves(yellowKing.id);
 
@@ -191,7 +190,7 @@ describe('Game check responses', () => {
 
     expect(rookMove).toBeDefined();
     expect(game.advanceTurn(rookMove!)).toBe(true);
-    expect(game.getGameState().getPlayerState(Color.RED)).toBe(PlayerState.CHECK);
+    expect(game.isPlayerInCheck(Color.RED)).toBe(true);
     expect(game.getLegalMoves(redKing.id)).not.toContainEqual(
       expect.objectContaining({ to: parseSquareId(2, 7) })
     );

@@ -7,9 +7,10 @@ import { buildDuplicatePiece, buildQueen } from "../../src/utils/utils";
 describe('Queen pseudo legal moves', () => {
   test('moves horizontally, vertically, and diagonally on an empty area', () => {
     const queen = buildQueen(Color.RED);
-    const board = new Board([[queen], [90]]);
+    const fromQueen = 90;
+    const board = new Board([[queen], [fromQueen]]);
 
-    const moves = queenMoves(queen, board).map(pos => parseSquareCoords(pos));
+    const moves = queenMoves(queen, fromQueen, board).map(pos => parseSquareCoords(pos));
 
     expect(moves).toContainEqual({ row: 1, col: 'g' });
     expect(moves).toContainEqual({ row: 7, col: 'f' });
@@ -23,9 +24,10 @@ describe('Queen pseudo legal moves', () => {
   test('stops before a friendly piece', () => {
     const queen = buildQueen(Color.RED);
     const ally = buildDuplicatePiece(Color.RED, PieceType.KNIGHT, false);
-    const board = new Board([[queen, ally], [90, 88]]);
+    const fromQueen = 90;
+    const board = new Board([[queen, ally], [fromQueen, 88]]);
 
-    const moves = queenMoves(queen, board).map(pos => parseSquareCoords(pos));
+    const moves = queenMoves(queen, fromQueen, board).map(pos => parseSquareCoords(pos));
 
     expect(moves).not.toContainEqual({ row: 5, col: 'g' });
     expect(moves).not.toContainEqual({ row: 4, col: 'g' });
@@ -34,9 +36,10 @@ describe('Queen pseudo legal moves', () => {
   test('captures an enemy piece and stops there', () => {
     const queen = buildQueen(Color.RED);
     const enemy = buildDuplicatePiece(Color.BLUE, PieceType.KNIGHT, true);
-    const board = new Board([[queen, enemy], [90, 88]]);
+    const fromQueen = 90;
+    const board = new Board([[queen, enemy], [fromQueen, 88]]);
 
-    const moves = queenMoves(queen, board).map(pos => parseSquareCoords(pos));
+    const moves = queenMoves(queen, fromQueen, board).map(pos => parseSquareCoords(pos));
 
     expect(moves).toContainEqual({ row: 5, col: 'g' });
     expect(moves).not.toContainEqual({ row: 4, col: 'g' });
