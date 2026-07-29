@@ -1,397 +1,434 @@
-import { Piece } from '../types/piece';
-import { Color, PieceType } from '../types';
+import { Color, Piece, PieceType } from '../types';
 import { initializePieces, validBoardSquares } from '../utils/utils';
 
-/**
- * The set of valid square ids for the four-player board shape. Computed
- * once and shared by every `Board` instance, since the board shape never
- * changes.
- */
+const TOTAL_SQUARES = 196;
 const VALID_SQUARES: ReadonlySet<number> = validBoardSquares();
+const PLAYER_COLORS = [Color.RED, Color.BLUE, Color.YELLOW, Color.GREEN];
+
+export type BoardConfig = 'CONFIG_1' | 'CONFIG_2';
+
+export type Square = Piece | null | 'OUT';
+
+/**
+ * A board setup: the pieces and their square ids, optionally paired with
+ * the ids of pieces that should start out inactive (see
+ * {@link Board.isPieceActive}). Supplying only `[pieces, squareIds]` is
+ * equivalent to an empty inactive list.
+ *
+ * The three-element form exists specifically so a `Board` clone can be
+ * exported (see {@link Board.exportPieces}) and rebuilt elsewhere (e.g.
+ * `RuleSet.findCheckmateArchitect`'s counterfactual replay) without
+ * losing track of which pieces were frozen.
+ */
+export type BoardSetup =
+  | [pieces: Piece[], squareIds: number[]]
+  | [pieces: Piece[], squareIds: number[], inactivePieceIds: string[]];
+
+/**
+ * The read-only subset of {@link Board}'s API: every query method, with
+ * no way to mutate board state.
+ *
+ * This is what {@link Game.getBoard} returns to external consumers (e.g.
+ * a UI layer), so that inspecting the current position can never be
+ * confused with — or accidentally used as a shortcut for — actually
+ * playing a move. Mutating the board is only ever valid through
+ * {@link Game.advanceTurn} / {@link Game.applyMove}, which route through
+ * the active {@link RuleSet}'s bookkeeping (history, captures, move
+ * clock, player status).
+ *
+ * `Board.clone()` is deliberately excluded: it returns a fully mutable
+ * `Board`, which would otherwise be a trivial loophole around this
+ * interface's entire purpose. Only internal engine code (`RuleSet`) is
+ * expected to need a real, mutable `Board` — see `Board`'s class docs.
+ */
+export interface ReadonlyBoard {
+  getConfig(): BoardConfig;
+  getOccupiedSquares(): Map<number, string>;
+  getOccupiedSquaresByColor(color: Color): [number, string][];
+  getPiece(id: string): Piece | undefined;
+  getPieceAt(squareId: number): Piece | undefined;
+  getPiecesByColor(color: Color): Piece[];
+  getSquareOf(pieceId: string): number | undefined;
+  getKingSquare(color: Color): number | undefined;
+  isOccupied(squareId: number): boolean;
+  isValidSquare(id: number): boolean;
+  isPieceActive(pieceId: string): boolean;
+  exportPieces(): [Piece[], number[], string[]];
+  toString(): string;
+}
 
 /**
  * Represents the state of a four-player chess board: which pieces exist,
- * where they are located, and which squares are occupied.
+ * where they are located, which squares are occupied, and — separately
+ * from piece identity — which pieces are currently inactive.
  *
- * `Board` is intentionally a pure state container — it knows nothing about
- * move legality, turn order, or check detection (see {@link RuleSet} and
- * {@link Game} for that). It only guarantees internal consistency between
- * pieces, their positions, and square occupancy.
+ * `Board` implements {@link ReadonlyBoard}; external consumers normally
+ * only ever see it through that narrower, mutation-free interface (see
+ * {@link Game.getBoard}). Internally, `RuleSet` holds/casts to the full
+ * `Board` type where genuine mutation is required.
  *
- * ### Invariants
- * - Every `Piece` is treated as **immutable**: any "update" (e.g. deactivating
- *   a piece, promoting a pawn) replaces the piece object in the internal map
- *   rather than mutating it in place. This is what makes {@link Board.clone}
- *   safe as a shallow copy.
- * - `piecePositions` and `occupiedSquares` are always kept in sync as
- *   inverses of each other.
+ * ### Activity tracking
+ * `Piece` objects themselves are immutable and carry no activity flag
+ * (see `types.ts`). Instead, `Board` tracks inactive piece ids in a
+ * small internal side-table, kept alongside (and cloned/exported
+ * together with) the grid. This is deliberate: `RuleSet`'s
+ * legality/check machinery operates almost entirely on isolated `Board`
+ * clones (see `RuleSet.isMoveLegal`, `RuleSet.findCheckmateArchitect`)
+ * without ever touching `Game`, so `Board` — not `Game` — must be the
+ * self-sufficient source of truth for whether a given piece can
+ * currently move or threaten a square. `Game`/`GameState`'s
+ * `PlayerStatus` remains the authoritative record of *why* a color is
+ * inactive; it drives *when* {@link Board.setPlayerPiecesInactive} gets
+ * called, but `Board` is what actually remembers the resulting fact.
+ *
+ * ### Guard policy
+ * As a general rule throughout this class: **queries are lenient, mutations
+ * are strict.** A query for an invalid/out-of-range square (e.g.
+ * {@link Board.isOccupied}, {@link Board.getPieceAt}) simply returns a
+ * negative/empty result rather than throwing. A mutation that would
+ * corrupt board invariants (e.g. placing a piece on a non-playable square,
+ * overwriting an occupied square via {@link Board.restorePiece}) throws
+ * immediately, since silently tolerating it would leave the board in an
+ * inconsistent state that could be far harder to trace later — especially
+ * once this class is on the hot path of automated search.
  */
-export class Board {
-  /** Pieces keyed by their stable piece id. */
-  private pieces: Map<string, Piece> = new Map();
+export class Board implements ReadonlyBoard {
+  private grid: Square[] = [];
 
-  /** Square id occupied by each piece, keyed by piece id. */
-  private piecePositions: Map<string, number> = new Map();
-
-  /** Reverse lookup of {@link piecePositions}: piece id keyed by square id. */
-  private occupiedSquares: Map<number, string> = new Map();
-
-  /** Set of square ids that are valid for the four-player board shape. */
-  private validSquares: ReadonlySet<number> = VALID_SQUARES;
+  private kingSquares: Record<Color, number | undefined> = {
+    [Color.RED]: undefined,
+    [Color.BLUE]: undefined,
+    [Color.YELLOW]: undefined,
+    [Color.GREEN]: undefined,
+  };
 
   /**
-   * Creates a new board.
-   *
-   * @param initialPieces - Optional explicit setup as a tuple of
-   * `[pieces, squareIds]`, where `squareIds[i]` is the starting square for
-   * `pieces[i]`. If omitted, the board is initialized with the standard
-   * four-player starting position (see {@link Board.buildDefaultSetup}).
-   *
-   * @example
-   * ```ts
-   * const board = new Board(); // standard starting position
-   * const empty = new Board([[], []]); // empty board
-   * ```
+   * Ids of pieces currently marked inactive (see class-level remarks).
+   * Membership means "cannot move, cannot capture, cannot threaten a
+   * square" — the piece otherwise remains a normal, capturable occupant.
    */
-  constructor(initialPieces?: [Piece[], number[]]) {
-    const [pieces, initialSquareIds] = initialPieces ?? this.buildDefaultSetup();
+  private inactivePieceIds = new Set<string>();
 
-    pieces.forEach((piece, index) => {
-      const squareId = initialSquareIds[index];
+  private readonly config: BoardConfig;
 
-      this.pieces.set(piece.id, piece);
-      this.piecePositions.set(piece.id, squareId);
-      this.occupiedSquares.set(squareId, piece.id);
-    });
+  constructor(
+    initialPieces?: BoardSetup,
+    config: BoardConfig = 'CONFIG_1'
+  ) {
+    this.config = config;
+
+    this.grid = new Array<Square>(TOTAL_SQUARES).fill(null);
+    for (let squareId = 0; squareId < TOTAL_SQUARES; squareId += 1) {
+      if (!VALID_SQUARES.has(squareId)) this.grid[squareId] = 'OUT';
+    }
+
+    const setup = initialPieces ?? this.buildDefaultSetup(config);
+
+    this.assignInitialPieces(setup[0], setup[1]);
+
+    const inactivePieceIds = setup.length === 3 ? setup[2] : [];
+    for (const id of inactivePieceIds) this.inactivePieceIds.add(id);
   }
 
-  /**
-   * Returns a snapshot of all occupied squares.
-   *
-   * @returns A new `Map` of square id → piece id. Mutating the returned map
-   * does not affect the board's internal state.
-   */
+  public getConfig(): BoardConfig {
+    return this.config;
+  }
+
   public getOccupiedSquares(): Map<number, string> {
-    return new Map(this.occupiedSquares);
-  }
+    const occupied = new Map<number, string>();
 
-  /**
-   * Returns all occupied squares belonging to pieces of a given color.
-   *
-   * @param color - The color to filter by.
-   * @returns An array of `[squareId, pieceId]` tuples. Note this returns
-   * piece **ids**, not `Piece` objects — use {@link Board.getPiece} to
-   * resolve them if needed.
-   */
-  public getOccupiedSquaresByColor(color: Color): [number, string][] {
-    return Array.from(this.occupiedSquares.entries()).filter(([, pieceId]) => {
-      const piece = this.getPiece(pieceId);
-
-      return piece?.color === color;
+    this.grid.forEach((square, squareId) => {
+      if (square !== null && square !== 'OUT') occupied.set(squareId, square.id);
     });
+
+    return occupied;
   }
 
-  /**
-   * Retrieves a piece by its stable id.
-   *
-   * @param id - The piece id.
-   * @returns The piece, or `undefined` if no piece with that id exists on
-   * the board (e.g. it was captured/removed).
-   */
+  public getOccupiedSquaresByColor(color: Color): [number, string][] {
+    const result: [number, string][] = [];
+
+    this.grid.forEach((square, squareId) => {
+      if (square !== null && square !== 'OUT' && square.color === color) {
+        result.push([squareId, square.id]);
+      }
+    });
+
+    return result;
+  }
+
   public getPiece(id: string): Piece | undefined {
-    return this.pieces.get(id);
+    const index = this.findIndexById(id);
+
+    return index === -1 ? undefined : (this.grid[index] as Piece);
   }
 
-  /**
-   * Retrieves the piece currently occupying a given square.
-   *
-   * @param squareId - The square id to inspect.
-   * @returns The occupying piece, or `undefined` if the square is empty.
-   */
   public getPieceAt(squareId: number): Piece | undefined {
-    const pieceId = this.occupiedSquares.get(squareId);
+    const square = this.grid[squareId];
 
-    if (!pieceId) return undefined;
-
-    return this.pieces.get(pieceId);
+    return square !== undefined && square !== null && square !== 'OUT'
+      ? square
+      : undefined;
   }
 
-  /**
-   * Returns all pieces belonging to a given color, regardless of whether
-   * they are active or captured status (see {@link Piece.active}).
-   *
-   * @param color - The color to filter by.
-   */
   public getPiecesByColor(color: Color): Piece[] {
-    return Array.from(this.pieces.values()).filter(piece => piece.color === color);
+    return this.grid.filter(
+      (square): square is Piece =>
+        square !== null && square !== 'OUT' && square.color === color
+    );
   }
 
-  /**
-   * Returns the square currently occupied by a given piece.
-   *
-   * @param pieceId - The piece id to locate.
-   * @returns The square id, or `undefined` if the piece does not exist on
-   * the board.
-   */
-  public getPositionOf(pieceId: string): number | undefined {
-    return this.piecePositions.get(pieceId);
+  public getSquareOf(pieceId: string): number | undefined {
+    const index = this.findIndexById(pieceId);
+
+    return index === -1 ? undefined : index;
   }
 
-  /**
-   * Checks whether a square currently holds a piece.
-   *
-   * @param squareId - The square id to check.
-   */
+  public getKingSquare(color: Color): number | undefined {
+    return this.kingSquares[color];
+  }
+
   public isOccupied(squareId: number): boolean {
-    return this.occupiedSquares.has(squareId);
+    const square = this.grid[squareId];
+
+    return square !== undefined && square !== null && square !== 'OUT';
+  }
+
+  public isValidSquare(id: number): boolean {
+    return this.grid[id] !== undefined && this.grid[id] !== 'OUT';
   }
 
   /**
-   * Checks whether a square id is part of the valid four-player board shape.
+   * Checks whether a piece is currently active — i.e. eligible to move,
+   * capture, or threaten a square. A piece not currently tracked at all
+   * (e.g. an unknown or already-captured id) is treated as active by
+   * default, consistent with this class's lenient query policy.
    *
-   * @param id - The square id to check.
+   * @param pieceId - The stable id of the piece to check.
    */
-  public isValidSquare(id: number): boolean {
-    return this.validSquares.has(id);
+  public isPieceActive(pieceId: string): boolean {
+    return !this.inactivePieceIds.has(pieceId);
   }
 
   /**
    * Places a piece on a square, moving it from its current square if
    * applicable.
    *
-   * ⚠️ **Capture behavior**: if another piece already occupies the
-   * destination square, that piece is **removed from the board entirely**
-   * (captured), regardless of color. Callers responsible for enforcing
-   * legality (e.g. `RuleSet`) must check this before calling `placePiece`
-   * if that isn't the desired outcome.
+   * ⚠️ **Capture behavior**: if another piece already occupies `squareId`,
+   * that piece is removed from the board entirely, regardless of color.
    *
-   * ⚠️ This method does **not** validate that `squareId` is a valid board
-   * square (see {@link Board.isValidSquare}); callers are expected to
-   * validate beforehand.
-   *
-   * @param pieceId - The id of the piece to place.
-   * @param squareId - The destination square id.
+   * @throws {@link RangeError} If `squareId` is not a valid, playable
+   * square (see the class-level guard policy).
    * @returns The moved piece, or `undefined` if no piece with `pieceId`
    * exists on the board.
    */
   public placePiece(pieceId: string, squareId: number): Piece | undefined {
-    const piece = this.pieces.get(pieceId);
+    this.assertPlayableSquare(squareId);
 
-    if (!piece) return undefined;
+    const fromIndex = this.findIndexById(pieceId);
+    if (fromIndex === -1) return undefined;
 
-    const currentSquareId = this.piecePositions.get(pieceId);
-    if (currentSquareId !== undefined) {
-      this.occupiedSquares.delete(currentSquareId);
-      this.piecePositions.delete(pieceId);
+    const piece = this.grid[fromIndex] as Piece;
+    const occupant = this.grid[squareId];
+
+    if (occupant !== null && occupant !== 'OUT' && occupant.type === PieceType.KING) {
+      this.kingSquares[occupant.color] = undefined;
     }
 
-    const existingPieceId = this.occupiedSquares.get(squareId);
-    if (existingPieceId !== undefined) {
-      this.occupiedSquares.delete(squareId);
-      this.piecePositions.delete(existingPieceId);
-      this.pieces.delete(existingPieceId);
-    }
+    this.grid[fromIndex] = null;
+    this.grid[squareId] = piece;
 
-    this.piecePositions.set(pieceId, squareId);
-    this.occupiedSquares.set(squareId, pieceId);
+    if (piece.type === PieceType.KING) {
+      this.kingSquares[piece.color] = squareId;
+    }
 
     return piece;
   }
 
-  /**
-   * Removes a piece from the board entirely (e.g. as a result of capture
-   * or elimination).
-   *
-   * @param pieceId - The id of the piece to remove.
-   * @returns The removed piece, or `undefined` if no piece with `pieceId`
-   * exists on the board.
-   */
   public removePiece(pieceId: string): Piece | undefined {
-    const piece = this.pieces.get(pieceId);
+    const index = this.findIndexById(pieceId);
+    if (index === -1) return undefined;
 
-    if (!piece) return undefined;
+    const piece = this.grid[index] as Piece;
+    this.grid[index] = null;
 
-    const currentSquareId = this.piecePositions.get(pieceId);
-    if (currentSquareId !== undefined) {
-      this.occupiedSquares.delete(currentSquareId);
-      this.piecePositions.delete(pieceId);
+    if (piece.type === PieceType.KING && this.kingSquares[piece.color] === index) {
+      this.kingSquares[piece.color] = undefined;
     }
 
-    this.pieces.delete(pieceId);
     return piece;
   }
 
   /**
    * Reinserts a previously removed piece directly onto a square, bypassing
-   * normal capture semantics (i.e. it does **not** clear or displace
-   * whatever else may already be tracked at `squareId` — callers are
-   * responsible for ensuring the square is actually free).
+   * normal capture semantics. Undo-only (see {@link RuleSet.undoMoveOnBoard}).
    *
-   * ⚠️ This exists exclusively to support **undoing** a previously applied
-   * move (see {@link RuleSet.undoMoveOnBoard}), by restoring a captured
-   * piece to the board exactly as it was before capture. It is not part of
-   * normal gameplay and should not be used for anything else.
-   *
-   * @param piece - The piece to reinsert, exactly as it existed before
-   * removal (e.g. as recorded via {@link Game.getCapturedPiece}, minus
-   * the `capturedBy` annotation).
-   * @param squareId - The square to place it on.
+   * @throws {@link RangeError} If `squareId` is not a valid, playable
+   * square, or is already occupied — the latter would silently discard
+   * whatever piece was already there, which almost certainly indicates a
+   * caller bug during undo replay rather than intended behavior.
    */
   public restorePiece(piece: Piece, squareId: number): void {
-    this.pieces.set(piece.id, piece);
-    this.piecePositions.set(piece.id, squareId);
-    this.occupiedSquares.set(squareId, piece.id);
-  }
+    this.assertPlayableSquare(squareId);
 
-  /**
-   * Reverts a previously promoted piece back to a pawn. No-op if the piece
-   * does not exist or is not currently promoted (i.e. is already a pawn).
-   *
-   * ⚠️ This exists exclusively to support **undoing** a previously applied
-   * promotion move (see {@link RuleSet.undoMoveOnBoard}). It is not part
-   * of normal gameplay.
-   *
-   * @param pieceId - The id of the piece to revert.
-   */
-  public revertPromotion(pieceId: string): void {
-    const piece = this.pieces.get(pieceId);
+    if (this.isOccupied(squareId)) {
+      throw new Error(
+        `Cannot restore piece ${piece.id} to square ${squareId}: square is already occupied.`
+      );
+    }
 
-    if (piece && piece.type !== PieceType.PAWN) {
-      this.pieces.set(pieceId, { ...piece, type: PieceType.PAWN });
+    this.grid[squareId] = piece;
+
+    if (piece.type === PieceType.KING) {
+      this.kingSquares[piece.color] = squareId;
     }
   }
 
+  public revertPromotion(pieceId: string): void {
+    const index = this.findIndexById(pieceId);
+    if (index === -1) return;
+
+    const piece = this.grid[index] as Piece;
+    if (piece.type === PieceType.PAWN) return;
+
+    this.grid[index] = { ...piece, type: PieceType.PAWN };
+  }
+
   /**
-   * Marks all of a player's pieces as inactive, typically used when a
-   * player is eliminated from the game.
+   * Marks a player's pieces inactive. Idempotent — safe to call
+   * repeatedly for the same color.
    *
-   * The king is looked up via the conventional id format `K-{color}`
-   * (see {@link initializePieces}). If this convention changes elsewhere,
-   * this method must be updated accordingly.
-   *
-   * @param color - The color whose pieces should be deactivated.
-   * @param keepKingActive - If `true`, the player's king is left active
-   * even though the rest of their pieces are deactivated. Defaults to
-   * `false`.
+   * @param color - The player whose pieces should be deactivated.
+   * @param keepKingActive - If `true`, the king is left active while
+   * every other piece of `color` is deactivated.
    */
   public setPlayerPiecesInactive(
     color: Color,
     keepKingActive: boolean = false
   ): void {
-    const king = this.pieces.get(`K-${color}`);
-    if (king && king.active && !keepKingActive) this.pieces.set(
-      `K-${color}`, 
-      {...king, active: false}
+    for (const piece of this.getPiecesByColor(color)) {
+      if (piece.type === PieceType.KING && keepKingActive) continue;
+
+      this.inactivePieceIds.add(piece.id);
+    }
+  }
+
+  public setPromotionPieceType(pieceId: string, newType: PieceType): void {
+    const index = this.findIndexById(pieceId);
+    if (index === -1) return;
+
+    const piece = this.grid[index] as Piece;
+    if (piece.type !== PieceType.PAWN) return;
+
+    this.grid[index] = { ...piece, type: newType };
+  }
+
+  public clone(): Board {
+    const clone = new Board([[], []], this.config);
+
+    clone.grid = [...this.grid];
+    clone.kingSquares = { ...this.kingSquares };
+    clone.inactivePieceIds = new Set(this.inactivePieceIds);
+
+    return clone;
+  }
+
+  public exportPieces(): [Piece[], number[], string[]] {
+    const pieces: Piece[] = [];
+    const positions: number[] = [];
+
+    this.grid.forEach((square, squareId) => {
+      if (square !== null && square !== 'OUT') {
+        pieces.push(square);
+        positions.push(squareId);
+      }
+    });
+
+    return [pieces, positions, Array.from(this.inactivePieceIds)];
+  }
+
+  private findIndexById(id: string): number {
+    return this.grid.findIndex(
+      square => square !== null && square !== 'OUT' && square.id === id
     );
-    this.pieces.forEach((p, id, _) => {
-      if (p.color === color && p.type !== PieceType.KING) {
-        if(!p.active) return;
-        this.pieces.set(p.id, {...p, active: false })
+  }
+
+  private assignInitialPieces(pieces: Piece[], squareIds: number[]): void {
+    if (pieces.length !== squareIds.length) {
+      throw new Error(
+        `Board setup mismatch: received ${pieces.length} pieces but ${squareIds.length} square ids.`
+      );
+    }
+
+    const seenIds = new Set<string>();
+    const seenSquares = new Set<number>();
+
+    pieces.forEach((piece, index) => {
+      const squareId = squareIds[index];
+
+      this.assertPlayableSquare(squareId);
+
+      if (seenIds.has(piece.id)) {
+        throw new Error(`Duplicate piece id in board setup: "${piece.id}".`);
+      }
+      seenIds.add(piece.id);
+
+      if (seenSquares.has(squareId)) {
+        throw new Error(`Two pieces assigned to the same square: ${squareId}.`);
+      }
+      seenSquares.add(squareId);
+
+      this.grid[squareId] = piece;
+
+      if (piece.type === PieceType.KING) {
+        this.kingSquares[piece.color] = squareId;
       }
     });
   }
 
-  /**
-   * Promotes a pawn to a new piece type.
-   *
-   * No-op if the piece does not exist or is not currently a pawn.
-   *
-   * @param pieceId - The id of the pawn being promoted.
-   * @param newType - The type to promote the pawn to (e.g. `QUEEN`).
-   */
-  public setPromotionPieceType(pieceId: string, newType: PieceType): void {
-    const piece = this.getPiece(pieceId);
+  private assertPlayableSquare(squareId: number): void {
+    if (!Number.isInteger(squareId) || squareId < 0 || squareId >= TOTAL_SQUARES) {
+      throw new RangeError(`Square id ${squareId} is out of range.`);
+    }
 
-    if (piece?.type === PieceType.PAWN) {
-      this.pieces.set(pieceId, { ...piece, type: newType });
+    if (this.grid[squareId] === 'OUT') {
+      throw new RangeError(`Square id ${squareId} is not part of the playable board.`);
     }
   }
 
-  /**
-   * Creates an independent copy of this board.
-   *
-   * This is a **shallow clone with respect to `Piece` objects**: the new
-   * board's internal maps are new, but the `Piece` objects themselves are
-   * shared by reference with the original board. This is safe as long as
-   * pieces are always treated as immutable (replaced, never mutated in
-   * place) — which holds true for all mutators in this class.
-   *
-   * @returns A new, independent `Board` instance with the same state.
-   */
-  public clone(): Board {
-    const pieces = Array.from(this.pieces.values(), p => JSON.parse(JSON.stringify(p)));
-    const positions = pieces.map(piece => this.piecePositions.get(piece.id)!);
-
-    return new Board([pieces, positions]);
-  }
-
-  /**
-   * Exports the board's current pieces and their positions as a
-   * constructor-compatible tuple, suitable for seeding a new `Board` (or,
-   * via {@link Game}'s constructor, a new `Game`) with an exact snapshot
-   * of this position.
-   *
-   * Unlike {@link Board.clone}, this does **not** deep-clone individual
-   * `Piece` objects — it returns direct references to them. This is safe
-   * under the same immutability invariant that makes `clone` safe, and is
-   * intentionally cheaper for callers (e.g. checkmate causal-attribution
-   * analysis in {@link RuleSet}) that only need a throwaway `Board`/`Game`
-   * built from the current position, without independent mutation
-   * isolation from `this`.
-   *
-   * @returns A `[pieces, squareIds]` tuple describing every piece
-   * currently on the board.
-   */
-  public exportPieces(): [Piece[], number[]] {
-    const pieces = Array.from(this.pieces.values());
-    const positions = pieces.map(piece => this.piecePositions.get(piece.id)!);
-
-    return [pieces, positions];
-  }
-
-  /**
-   * Builds the default four-player starting position.
-   *
-   * @returns A `[pieces, squareIds]` tuple covering all four colors
-   * (RED, BLUE, YELLOW, GREEN).
-   */
-  private buildDefaultSetup(): [Piece[], number[]] {
+  private buildDefaultSetup(config: BoardConfig): [Piece[], number[]] {
     const pieces: Piece[] = [];
     const positions: number[] = [];
 
-    [
-      initializePieces(Color.RED),
-      initializePieces(Color.BLUE),
-      initializePieces(Color.YELLOW),
-      initializePieces(Color.GREEN)
-    ].forEach(([piecesForColor, positionsForColor]) => {
-      pieces.push(...piecesForColor);
-      positions.push(...positionsForColor);
-    });
+    for (const color of PLAYER_COLORS) {
+      const [piecesForColor, positionsForColor] = this.initializeColorPieces(color, config) ??
+        [undefined, undefined];
+
+      if (piecesForColor) pieces.push(...piecesForColor);
+      if (positionsForColor) positions.push(...positionsForColor);
+    }
 
     return [pieces, positions];
   }
 
-  /**
-   * Serializes the board to a deterministic, order-independent string
-   * suitable for comparison purposes (e.g. detecting repeated positions).
-   *
-   * This is **not** intended as a human-readable board display — it is a
-   * flat, sorted list of `pieceId,squareId` pairs.
-   *
-   * Format: `"pieceId,squareId;pieceId,squareId;..."`, sorted by piece id.
-   *
-   * @returns `"empty board"` if no pieces are on the board, otherwise the
-   * serialized state string.
-   */
-  public toString(): string {
-    if (!this.piecePositions.size)
-      return "empty board";
+  private initializeColorPieces(color: Color, config: BoardConfig): [Piece[], number[]] | undefined {
+    switch (config) {
+      case 'CONFIG_1':
+        return initializePieces(color);
+      case 'CONFIG_2':
+        throw new Error('BoardConfig.CONFIG_2 is not yet implemented.');
+    }
+  }
 
-    return Array
-      .from(this.piecePositions.entries())
-      .sort(([id1], [id2]) => id1.localeCompare(id2))
-      .map(([pieceId, position]) => `${pieceId},${position}`)
-      .join(";");
+  public toString(): string {
+    const entries: string[] = [];
+
+    for (let squareId = 0; squareId < TOTAL_SQUARES; squareId += 1) {
+      const square = this.grid[squareId];
+      if (square !== null && square !== 'OUT') {
+        entries.push(`${square.id},${squareId}`);
+      }
+    }
+
+    return entries.length === 0 ? 'empty board' : entries.join(';');
   }
 }

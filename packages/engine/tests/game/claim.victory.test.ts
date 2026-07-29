@@ -12,7 +12,7 @@ import {
   createDuplicatePieceId, 
   createPieceId 
 } from "../../src/utils/utils";
-import { advanceToPlayer, createClassicGame, resignWithoutKing, findMoveTo } from '../test-utils';
+import { advanceToPlayer, createClassicGame, findMoveTo } from '../test-utils';
 
 describe('Claim victory', () => {
   let game: Game;
@@ -48,8 +48,8 @@ describe('Claim victory', () => {
         parseSquareId(5, 8)
       ]
     ]);
-    resignWithoutKing(Color.YELLOW, game);
-    resignWithoutKing(Color.GREEN, game);
+    game.resignPlayer(Color.YELLOW);
+    game.resignPlayer(Color.GREEN);
   });
 
   test('cannot claim victory with less than a 21-point lead', () => {

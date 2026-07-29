@@ -1,1 +1,1 @@
-export { Board } from './board';
+export { Board, type BoardSetup, type ReadonlyBoard } from './board';

@@ -1,18 +1,6 @@
 import { Board } from "../board";
-import { Color, Piece, SquareCoordsOffset } from "../types";
-import { parseSquareCoords, toSquareId } from "../utils";
-import { pushIfEmptyOrEnemy, translateSquareCoords } from "../utils/utils";
-
-const KING_OFFSETS: SquareCoordsOffset[] = [
-  { rowDelta: -1, colDelta: -1 },
-  { rowDelta: -1, colDelta: 0 },
-  { rowDelta: -1, colDelta: 1 },
-  { rowDelta: 0, colDelta: -1 },
-  { rowDelta: 0, colDelta: 1 },
-  { rowDelta: 1, colDelta: -1 },
-  { rowDelta: 1, colDelta: 0 },
-  { rowDelta: 1, colDelta: 1 }
-];
+import { Color, Piece } from "../types";
+import { KING_DIRECTIONS, singleStepDestinations } from "./move-geometry";
 
 export function castleDirectionOffset(color: Color, kingSide: boolean): number {
   switch (color) {
@@ -27,19 +15,6 @@ export function castleDirectionOffset(color: Color, kingSide: boolean): number {
   }
 }
 
-export function kingMoves(king: Piece, position: number, board: Board): number[] {
-  const moves: number[] = [];
-  const currentCoords = parseSquareCoords(position);
-
-  for (const offset of KING_OFFSETS) {
-    const translated = translateSquareCoords(currentCoords, offset);
-    if (!translated) continue;
-
-    const destination = toSquareId(translated);
-    if (board.isValidSquare(destination)) {
-      pushIfEmptyOrEnemy(moves, king, board, destination);
-    }
-  }
-
-  return moves;
+export function kingMoves(king: Piece, from: number, board: Board): number[] {
+  return singleStepDestinations(king, from, board, KING_DIRECTIONS);
 }

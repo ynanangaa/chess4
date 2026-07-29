@@ -46,8 +46,8 @@ describe('Game special moves', () => {
 
       expect(castleMove).toBeDefined();
       expect(game.applyMove(castleMove!)).toBe(true);
-      expect(game.getBoard().getPositionOf(king.id)).toBe(castleTarget);
-      expect(game.getBoard().getPositionOf(rook.id)).toBe(rookTarget);
+      expect(game.getBoard().getSquareOf(king.id)).toBe(castleTarget);
+      expect(game.getBoard().getSquareOf(rook.id)).toBe(rookTarget);
     }
   );
 
@@ -90,7 +90,7 @@ describe('Game special moves', () => {
 
       expect(promotionMove).toBeDefined();
       expect(game.applyMove(promotionMove!)).toBe(true);
-      expect(game.getBoard().getPositionOf(pawn.id)).toBe(promotionSquare);
+      expect(game.getBoard().getSquareOf(pawn.id)).toBe(promotionSquare);
       expect(game.getBoard().getPiece(pawn.id)?.type).toBe(PieceType.QUEEN);
     }
   );

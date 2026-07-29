@@ -77,8 +77,14 @@ function App() {
     : undefined;
 
   const selectedSquareId = selectedPiece
-    ? board.getPositionOf(selectedPiece.id)
+    ? board.getSquareOf(selectedPiece.id)
     : undefined;
+
+if (import.meta.env.DEV) { // Pour Vite
+  // Ou process.env.NODE_ENV === 'development' pour Webpack/Create-React-App
+  (window as any).debugGame = game;
+  console.log('Objet Game exposé pour le débogage : window.debugGame');
+}
 
   return (
     <div className="min-h-screen bg-slate-900 text-slate-100 flex items-center justify-center p-8">

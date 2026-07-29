@@ -1,10 +1,20 @@
-import { Color, GameStatus, PlayerState } from "../types";
+import { Color, GameStatus, PlayerStatus } from "../types";
 
 const PLAYER_COLORS = [Color.RED, Color.BLUE, Color.YELLOW, Color.GREEN];
 
+function defaultPlayerStatus(): PlayerStatus {
+  return {
+    inCheck: false,
+    checkmated: false,
+    stalemated: false,
+    resigned: false,
+    timedOut: false
+  };
+}
+
 /**
  * Stores mutable game-wide state that is independent of board piece
- * placement: turn order, game lifecycle status, per-player states, and
+ * placement: turn order, game lifecycle status, per-player status, and
  * the move clock used by draw rules.
  *
  * `GameState` is used internally by {@link Game}, but is exposed through
@@ -12,9 +22,13 @@ const PLAYER_COLORS = [Color.RED, Color.BLUE, Color.YELLOW, Color.GREEN];
  * convenience methods on `Game` unless they intentionally need direct
  * state manipulation.
  *
- * Each player owns a list of states rather than a single state. This allows
- * forfeit or terminal states such as `RESIGNED`, `TIMED_OUT`, `CHECKMATE`,
- * and `STALEMATE` to coexist in the stored state list when relevant.
+ * Each player's status is a small set of independent boolean flags (see
+ * {@link PlayerStatus}) rather than a single exclusive state. Unlike the
+ * old single-state model this replaces, these conditions genuinely
+ * aren't mutually exclusive — a resigned player's abandoned position may
+ * still later be found checkmated, for instance — so there's no
+ * reconciliation logic needed here at all; each flag is set
+ * independently and stays set.
  */
 export class GameState {
   /** The color whose turn is currently being processed. */
@@ -23,13 +37,8 @@ export class GameState {
   /** The overall lifecycle status of the game. */
   private status: GameStatus = GameStatus.RUNNING;
 
-  /**
-   * States associated with each player color.
-   *
-   * The last state in each array is returned by {@link getPlayerState};
-   * the full list is available through {@link getPlayerStates}.
-   */
-  private playerStates = new Map<Color, PlayerState[]>();
+  /** Status flags for each player color. */
+  private playerStatuses = new Map<Color, PlayerStatus>();
 
   /**
    * Number of consecutive turns without a capture or pawn move, used by
@@ -41,64 +50,47 @@ export class GameState {
    * Creates game state for a new game.
    *
    * The game begins with RED to move, status `RUNNING`, a move clock of
-   * zero, and every player in the `NORMAL` state.
+   * zero, and every player's status flags cleared.
    */
   constructor() {
     for (const color of PLAYER_COLORS) {
-      this.playerStates.set(color, [PlayerState.NORMAL]);
+      this.playerStatuses.set(color, defaultPlayerStatus());
     }
   }
 
-  /**
-   * Returns the color whose turn is currently active.
-   */
+  /** Returns the color whose turn is currently active. */
   public getCurrentPlayerColor(): Color {
     return this.currentPlayerColor;
   }
 
-  /**
-   * Returns the overall lifecycle status of the game.
-   */
+  /** Returns the overall lifecycle status of the game. */
   public getStatus(): GameStatus {
     return this.status;
   }
 
   /**
-   * Returns the most recently assigned state for a player.
+   * Returns a color's current status.
    *
-   * @param color - The player color to inspect.
-   * @returns The latest player state, or `undefined` if the color has no
-   * stored state entry.
-   */
-  public getPlayerState(color: Color): PlayerState | undefined {
-    const states = this.playerStates.get(color);
-
-    return states?.[states.length - 1];
-  }
-
-  /**
-   * Returns all states currently stored for a player.
-   *
-   * The returned array is a copy and can be mutated without affecting the
-   * game's internal state.
+   * The returned object is a copy; mutating it does not affect this
+   * `GameState`.
    *
    * @param color - The player color to inspect.
    */
-  public getPlayerStates(color: Color): PlayerState[] {
-    return [...(this.playerStates.get(color) ?? [])];
+  public getPlayerStatus(color: Color): PlayerStatus {
+    return { ...this.playerStatuses.get(color)! };
   }
 
   /**
-   * Returns all player state collections.
+   * Returns every color's current status.
    *
-   * Both the returned map and each returned state array are copies, so
-   * mutating them does not affect this `GameState`.
+   * Both the returned map and each contained status object are copies,
+   * so mutating them does not affect this `GameState`.
    */
-  public getAllPlayerStates(): Map<Color, PlayerState[]> {
+  public getAllPlayerStatuses(): Map<Color, PlayerStatus> {
     return new Map(
-      Array.from(this.playerStates.entries()).map(([color, states]) => [
+      Array.from(this.playerStatuses.entries()).map(([color, status]) => [
         color,
-        [...states]
+        { ...status }
       ])
     );
   }
@@ -113,27 +105,12 @@ export class GameState {
     return this.moveClock;
   }
 
-  /**
-   * Checks whether a player currently has a specific state in their state
-   * collection.
-   *
-   * @param color - The player color to inspect.
-   * @param state - The state to look for.
-   */
-  public hasPlayerState(color: Color, state: PlayerState): boolean {
-    return this.playerStates.get(color)?.includes(state) ?? false;
-  }
-
-  /**
-   * Increments the move clock by one.
-   */
+  /** Increments the move clock by one. */
   public incrementMoveClock(): void {
     this.moveClock += 1;
   }
 
-  /**
-   * Resets the move clock to zero, normally after a capture or pawn move.
-   */
+  /** Resets the move clock to zero, normally after a capture or pawn move. */
   public resetMoveClock(): void {
     this.moveClock = 0;
   }
@@ -143,95 +120,25 @@ export class GameState {
    *
    * This method does not validate turn order or whether the selected player
    * is active; callers are responsible for enforcing those rules.
-   *
-   * @param color - The new current player color.
    */
   public setCurrentPlayerColor(color: Color): void {
     this.currentPlayerColor = color;
   }
 
-  /**
-   * Sets the overall lifecycle status of the game.
-   *
-   * @param status - The new game status.
-   */
+  /** Sets the overall lifecycle status of the game. */
   public setStatus(status: GameStatus): void {
     this.status = status;
   }
 
   /**
-   * Adds or updates a state for a player while preserving state invariants.
+   * Updates a subset of a color's status flags, leaving the rest
+   * unchanged.
    *
-   * Normalization rules include:
-   * - `NORMAL` removes `CHECK`.
-   * - `CHECK` removes `NORMAL`.
-   * - Terminal/forfeit states remove `NORMAL` and `CHECK`.
-   * - Re-applying an existing state moves it to the end of the state list.
-   *
-   * Terminal and forfeit states are not mutually exclusive: for example, a
-   * player may retain both `RESIGNED` and `CHECKMATE` if both conditions are
-   * recorded during the game.
-   *
-   * @param color - The player color whose state should be updated.
-   * @param state - The state to add or make current.
+   * @param color - The player color to update.
+   * @param patch - The status field(s) to change.
    */
-  public setPlayerState(color: Color, state: PlayerState): void {
-    const states = this.withNormalizedState(
-      this.playerStates.get(color) ?? [],
-      state
-    );
-
-    this.playerStates.set(color, states);
-  }
-
-  /**
-   * Produces a normalized replacement state list after applying
-   * `nextState`.
-   */
-  private withNormalizedState(
-    currentStates: PlayerState[],
-    nextState: PlayerState
-  ): PlayerState[] {
-    let states = currentStates.filter(state => state !== nextState);
-
-    if (nextState === PlayerState.NORMAL) {
-      states = states.filter(state => state !== PlayerState.CHECK);
-
-      if (states.some(state => this.isTerminalOrForfeitState(state))) {
-        return states;
-      }
-    }
-
-    if (nextState === PlayerState.CHECK) {
-      states = states.filter(state => state !== PlayerState.NORMAL);
-
-      if (states.some(state => this.isTerminalOrForfeitState(state))) {
-        return states;
-      }
-    }
-
-    if (this.isTerminalOrForfeitState(nextState)) {
-      states = states.filter(state =>
-        state !== PlayerState.NORMAL &&
-        state !== PlayerState.CHECK
-      );
-    }
-
-    states.push(nextState);
-
-    return states;
-  }
-
-  /**
-   * Checks whether a state represents a terminal board condition or a
-   * player forfeit condition.
-   */
-  private isTerminalOrForfeitState(state: PlayerState): boolean {
-    return (
-      state === PlayerState.CHECKMATE ||
-      state === PlayerState.STALEMATE ||
-      state === PlayerState.RESIGNED ||
-      state === PlayerState.TIMED_OUT
-    );
+  public updatePlayerStatus(color: Color, patch: Partial<PlayerStatus>): void {
+    const current = this.playerStatuses.get(color)!;
+    this.playerStatuses.set(color, { ...current, ...patch });
   }
 }

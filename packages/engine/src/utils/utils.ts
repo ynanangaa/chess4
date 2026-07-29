@@ -1,5 +1,5 @@
 import { Board } from "../board";
-import { Col, Color, Piece, PieceType, Row, SquareCoords, SquareCoordsOffset } from "../types";
+import { Col, Color, Piece, PieceType, Row, SquareCoords } from "../types";
 
 /** The board dimension: 14 rows × 14 columns. */
 const BOARD_SIZE = 14;
@@ -80,40 +80,6 @@ export function parseSquareCoords(id: number): SquareCoords {
  */
 export function toSquareId(coords: SquareCoords): number {
   return parseSquareId(coords.row, inverseParseCol(coords.col));
-}
-
-/**
- * Applies a row/column offset to a set of coordinates, returning the
- * resulting coordinates or `undefined` if the result falls outside the
- * board's 1–14 bounds.
- *
- * Used internally by sliding-piece and step-piece move generation to
- * probe adjacent or successive squares.
- *
- * @param coords - The starting coordinates.
- * @param offset - The row and column delta to apply.
- * @returns The translated coordinates, or `undefined` if out of bounds.
- */
-export function translateSquareCoords(
-  coords: SquareCoords,
-  offset: SquareCoordsOffset
-): SquareCoords | undefined {
-  const row = coords.row + offset.rowDelta;
-  const col = inverseParseCol(coords.col) + offset.colDelta;
-
-  if (
-    row < FIRST_VALID_SQUARE ||
-    row > LAST_VALID_SQUARE ||
-    col < FIRST_VALID_SQUARE ||
-    col > LAST_VALID_SQUARE
-  ) {
-    return undefined;
-  }
-
-  return {
-    row: parseRow(row),
-    col: parseCol(col)
-  };
 }
 
 // ─── Board shape (internal) ────────────────────────────────────────────────
@@ -241,15 +207,13 @@ export function createDuplicatePieceId(
 // ─── Standard piece builders (internal) ───────────────────────────────────
 
 /**
- * Builds a pawn `Piece` in its default active state, using the engine's
- * standard id convention.
+ * Builds a pawn `Piece using the engine'sstandard id convention.
  *
  * @remarks Internal — used to assemble the standard starting setup. Build
  * your own `Piece` objects directly for custom setups.
  */
 export function buildPawn(color: Color, pawnNum: number): Piece {
   return {
-    active: true,
     id: createPieceId(color, PieceType.PAWN, pawnNum),
     color,
     type: PieceType.PAWN,
@@ -265,7 +229,6 @@ export function buildPawn(color: Color, pawnNum: number): Piece {
  */
 export function buildQueen(color: Color): Piece {
   return {
-    active: true,
     id: createPieceId(color, PieceType.QUEEN),
     color,
     type: PieceType.QUEEN,
@@ -285,7 +248,6 @@ export function buildQueen(color: Color): Piece {
  */
 export function buildKing(color: Color): Piece {
   return {
-    active: true,
     id: createPieceId(color, PieceType.KING),
     color,
     type: PieceType.KING
@@ -317,7 +279,6 @@ export function buildDuplicatePiece(
 ): Piece {
   const points = type === PieceType.KNIGHT? 3: 5;
   return {
-    active: true,
     id: createDuplicatePieceId(color, type, kingSide),
     color,
     type,
@@ -509,94 +470,4 @@ export function initializePieces(color: Color): [Piece[], number[]] {
  */
 export function pickRandomElement<T>(arr: T[]): T {
   return arr[Math.floor(Math.random() * arr.length)];
-}
-
-/**
- * Appends `enemyPosition` to `moves` only if it is occupied by a piece of
- * a different color than `piece`.
- *
- * @remarks Internal — used by pawn move generation for diagonal captures.
- */
-export function pushIfOccupantIsEnemy(
-  moves: number[],
-  piece: Piece,
-  board: Board,
-  enemyPosition: number
-): void {
-  const occupant = board.getPieceAt(enemyPosition);
-
-  if (occupant && occupant.color !== piece.color) {
-    moves.push(enemyPosition);
-  }
-}
-
-/**
- * Appends `targetPosition` to `moves` if it is empty or occupied by a
- * piece of a different color than `piece`.
- *
- * @remarks Internal — used by step-piece move generation (knight, king).
- */
-export function pushIfEmptyOrEnemy(
-  moves: number[],
-  piece: Piece,
-  board: Board,
-  targetPosition: number
-): void {
-  const occupant = board.getPieceAt(targetPosition);
-
-  if (!occupant || occupant.color !== piece.color) {
-    moves.push(targetPosition);
-  }
-}
-
-/**
- * Computes pseudo-legal destination squares for a sliding piece (rook,
- * bishop, queen) by walking each direction in `offsets` one step at a
- * time until an occupied square or the board edge is reached.
- *
- * @remarks Internal — shared implementation behind `rookMoves`,
- * `bishopMoves`, and `queenMoves`.
- *
- * @param pieceId - The id of the sliding piece.
- * @param board - The board to evaluate against.
- * @param offsets - The direction(s) to slide along.
- * @returns All reachable square ids, including a capture square where a
- * ray is stopped by an enemy piece.
- */
-export function slidingMoves(
-  pieceId: string,
-  board: Board,
-  offsets: SquareCoordsOffset[]
-): number[] {
-  const moves: number[] = [];
-  const piecePosition = board.getPositionOf(pieceId);
-  if (piecePosition === undefined) return moves;
-
-  const piece = board.getPiece(pieceId);
-  if (!piece) return moves;
-
-  for (const offset of offsets) {
-    let currentCoords = parseSquareCoords(piecePosition);
-
-    while (true) {
-      const translated = translateSquareCoords(currentCoords, offset);
-      if (!translated) break;
-
-      const newPosition = toSquareId(translated);
-      if (!board.isValidSquare(newPosition)) break;
-
-      const occupant = board.getPieceAt(newPosition);
-      if (occupant) {
-        if (occupant.color !== piece.color) {
-          moves.push(newPosition);
-        }
-        break;
-      }
-
-      moves.push(newPosition);
-      currentCoords = translated;
-    }
-  }
-
-  return moves;
 }

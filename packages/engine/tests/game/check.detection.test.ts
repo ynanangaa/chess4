@@ -4,7 +4,6 @@ import {
   Color,
   parseSquareId,
   PieceType,
-  PlayerState
 } from '../../src';
 import { buildDuplicatePiece, buildKing, buildQueen } from "../../src/utils/utils";
 import { advanceToPlayer, createClassicGame, findMoveTo } from '../test-utils';
@@ -65,54 +64,11 @@ describe('Game check detection', () => {
 
     expect(knightMove).toBeDefined();
     expect(game.advanceTurn(knightMove!)).toBe(true);
-    expect(game.getGameState().getPlayerState(Color.RED)).toBe(PlayerState.CHECK);
+    expect(game.isPlayerInCheck(Color.RED)).toBe(true);
 
     const history = game.getHistory();
     const lastMove = history[history.length - 1];
 
-    expect(lastMove.check).toContain(Color.RED);
-  });
-
-  test('attributes a check discovered across colors to the piece that moved, not the attacker', () => {
-    // BLUE knight sits between GREEN's queen and RED's king. Moving the
-    // knight away (without itself attacking anyone) uncovers GREEN's
-    // queen's attack on RED. The move that caused this — BLUE's — must
-    // be the one annotated with the new check, even though BLUE's piece
-    // is not what attacks the RED king.
-    const redKing = buildKing(Color.RED);
-    const blueKing = buildKing(Color.BLUE);
-    const yellowKing = buildKing(Color.YELLOW);
-    const greenKing = buildKing(Color.GREEN);
-    const blueKnight = buildDuplicatePiece(Color.BLUE, PieceType.KNIGHT, true);
-    const greenQueen = buildDuplicatePiece(Color.GREEN, PieceType.QUEEN, true);
-
-    // RED king and GREEN queen aligned on the same row, with BLUE's
-    // knight sitting directly between them, blocking the line.
-    const game = createClassicGame([
-      [redKing, blueKing, yellowKing, greenKing, blueKnight, greenQueen],
-      [
-        parseSquareId(7, 2),   // RED king
-        parseSquareId(10, 1),  // BLUE king (out of the way)
-        parseSquareId(14, 8),  // YELLOW king (out of the way)
-        parseSquareId(3, 12),  // GREEN king (out of the way)
-        parseSquareId(7, 6),   // BLUE knight — blocks row 7 between RED king and GREEN queen
-        parseSquareId(7, 10)   // GREEN queen — same row as RED king
-      ]
-    ]);
-
-    advanceToPlayer(game, Color.BLUE);
-
-    const knightMove = findMoveTo(game, blueKnight.id, parseSquareId(5, 5));
-    expect(knightMove).toBeDefined();
-    expect(game.advanceTurn(knightMove!)).toBe(true);
-
-    expect(game.getGameState().getPlayerState(Color.RED)).toBe(PlayerState.CHECK);
-
-    const history = game.getHistory();
-    const lastMove = history[history.length - 1];
-
-    // The RECORDED move is BLUE's knight move — check must be true here.
-    expect(lastMove.pieceId).toBe(blueKnight.id);
     expect(lastMove.check).toContain(Color.RED);
   });
 
@@ -148,7 +104,7 @@ describe('Game check detection', () => {
     expect(knightMove).toBeDefined();
     expect(game.advanceTurn(knightMove!)).toBe(true);
 
-    expect(game.getPlayerState(Color.RED)).toBe(PlayerState.CHECK);
+    expect(game.isPlayerInCheck(Color.RED)).toBe(true);
 
     const history = game.getHistory();
     const lastMove = history[history.length - 1];

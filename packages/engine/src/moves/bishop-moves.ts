@@ -1,18 +1,11 @@
 import { Board } from "../board";
-import { Piece, SquareCoordsOffset } from "../types";
-import { slidingMoves } from "../utils/utils";
+import { Piece } from "../types";
+import { BISHOP_DIRECTIONS, slideDestinations } from "./move-geometry";
 
-const BISHOP_DIRECTION_OFFSETS: SquareCoordsOffset[] = [
-  { rowDelta: -1, colDelta: -1 },
-  { rowDelta: -1, colDelta: 1 },
-  { rowDelta: 1, colDelta: -1 },
-  { rowDelta: 1, colDelta: 1 }
-];
-
-export function bishopDirectionOffsets(): SquareCoordsOffset[] {
-  return [...BISHOP_DIRECTION_OFFSETS];
+export function bishopDirections(): number[] {
+  return [...BISHOP_DIRECTIONS];
 }
 
-export function bishopMoves(bishop: Piece, board: Board): number[] {
-  return slidingMoves(bishop.id, board, BISHOP_DIRECTION_OFFSETS);
+export function bishopMoves(bishop: Piece, from: number, board: Board): number[] {
+  return slideDestinations(bishop, from, board, BISHOP_DIRECTIONS);
 }

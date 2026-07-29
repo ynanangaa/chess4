@@ -1,67 +1,39 @@
 import { Board } from "../board";
-import { Color, Piece, SquareCoordsOffset } from "../types";
-import { parseSquareCoords, toSquareId } from "../utils";
-import { pushIfOccupantIsEnemy, translateSquareCoords } from "../utils/utils";
+import { Color, Piece } from "../types";
+import { stepInDirection } from "./move-geometry";
 
-export function forwardDirection(color: Color): SquareCoordsOffset {
+export function forwardDirection(color: Color): number {
   switch (color) {
-    case Color.RED:
-      return { rowDelta: 1, colDelta: 0 };
-    case Color.YELLOW:
-      return { rowDelta: -1, colDelta: 0 };
-    case Color.BLUE:
-      return { rowDelta: 0, colDelta: 1 };
-    case Color.GREEN:
-      return { rowDelta: 0, colDelta: -1 };
+    case Color.RED: return 1;
+    case Color.YELLOW: return -1;
+    case Color.BLUE: return 14;
+    case Color.GREEN: return -14;
   }
 }
 
-function captureDirections(color: Color): SquareCoordsOffset[] {
+function captureDirections(color: Color): number[] {
   switch (color) {
-    case Color.RED:
-      return [
-        { rowDelta: 1, colDelta: -1 },
-        { rowDelta: 1, colDelta: 1 }
-      ];
-    case Color.YELLOW:
-      return [
-        { rowDelta: -1, colDelta: -1 },
-        { rowDelta: -1, colDelta: 1 }
-      ];
-    case Color.BLUE:
-      return [
-        { rowDelta: -1, colDelta: 1 },
-        { rowDelta: 1, colDelta: 1 }
-      ];
-    case Color.GREEN:
-      return [
-        { rowDelta: -1, colDelta: -1 },
-        { rowDelta: 1, colDelta: -1 }
-      ];
+    case Color.RED: return [-13, 15];
+    case Color.YELLOW: return [-15, 13];
+    case Color.BLUE: return [13, 15];
+    case Color.GREEN: return [-15, -13];
   }
 }
 
-export function pawnMoves(pawn: Piece, position: number, board: Board): number[] {
+export function pawnMoves(pawn: Piece, from: number, board: Board): number[] {
   const moves: number[] = [];
-  const currentCoords = parseSquareCoords(position);
-  const forwardCoords = translateSquareCoords(currentCoords, forwardDirection(pawn.color));
 
-  if (forwardCoords) {
-    const forwardPosition = toSquareId(forwardCoords);
-
-    if (board.isValidSquare(forwardPosition) && !board.isOccupied(forwardPosition)) {
-      moves.push(forwardPosition);
-    }
+  const forward = stepInDirection(from, forwardDirection(pawn.color));
+  if (forward !== undefined && board.isValidSquare(forward) && !board.isOccupied(forward)) {
+    moves.push(forward);
   }
 
-  for (const offset of captureDirections(pawn.color)) {
-    const captureCoords = translateSquareCoords(currentCoords, offset);
-    if (!captureCoords) continue;
+  for (const direction of captureDirections(pawn.color)) {
+    const to = stepInDirection(from, direction);
+    if (to === undefined || !board.isValidSquare(to)) continue;
 
-    const capturePosition = toSquareId(captureCoords);
-    if (board.isValidSquare(capturePosition)) {
-      pushIfOccupantIsEnemy(moves, pawn, board, capturePosition);
-    }
+    const occupant = board.getPieceAt(to);
+    if (occupant && occupant.color !== pawn.color) moves.push(to);
   }
 
   return moves;

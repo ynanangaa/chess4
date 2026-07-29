@@ -2,7 +2,7 @@ import { Board } from "../board";
 import { Game } from "../game";
 import { Move, MoveGenerator } from "../moves";
 import { rookCastleDirectionOffset } from "../moves/rook-moves";
-import { CapturedPiece, Color, GameStatus, Piece, PieceType, PlayerState } from "../types";
+import { CapturedPiece, Color, GameStatus, Piece, PieceType } from "../types";
 import { pickRandomElement, rookInitialSquareId } from "../utils/utils";
 
 /**
@@ -130,13 +130,18 @@ export abstract class RuleSet {
    * @returns `true` if the move was applied successfully; `false` if the
    * game is already over, or if the move could not be applied (e.g. the
    * piece no longer exists on the board).
+   * 
+   * @remarks
+   * `game.getBoard()` returns a `ReadonlyBoard`; this cast to `Board` is
+   * intentional and confined to `RuleSet` — it is the one component
+   * permitted to mutate the board directly (see `Game.getBoard`).
    */
   public applyMove(move: Move, game: Game): boolean {
     if (game.isOver()) return false;
     
     const [appliedMove, capturedPiece]: 
       [Move | undefined, CapturedPiece | undefined]
-        = this.applyMoveOnBoard(move, game.getBoard());
+        = this.applyMoveOnBoard(move, game.getBoard() as Board);
     if (!appliedMove) return false;
 
     // Stage 2 : Game (history, moved and captured pieces, check infos)
@@ -171,33 +176,32 @@ export abstract class RuleSet {
    * `capturedBy`, or `undefined` if nothing was captured.
    */
   protected applyMoveOnBoard(
-    move: Move, 
+    move: Move,
     board: Board
   ): [Move | undefined, CapturedPiece | undefined] {
     let appliedMove = this.withDirectCapture(move, board);
-
-    let directCapturedId = appliedMove.capture;
+    const directCapturedId = appliedMove.capture;
 
     this.applyPromotion(appliedMove, board);
     this.applyCastling(move, board);
 
     const capturedPieceId = directCapturedId;
-
+    const capturedPieceWasActive =
+      capturedPieceId !== undefined ? board.isPieceActive(capturedPieceId) : undefined;
     const capturedPiece =
-      capturedPieceId !== undefined
-        ? board.getPiece(capturedPieceId)!
-        : undefined;
+      capturedPieceId !== undefined ? board.getPiece(capturedPieceId)! : undefined;
 
     const movedPiece = board.placePiece(move.pieceId, move.to);
 
     if (!movedPiece) return [undefined, undefined];
-
-    if(!capturedPiece) return [appliedMove, capturedPiece];
+    if (!capturedPiece) return [appliedMove, undefined];
 
     return [
-      appliedMove, {
-        ...capturedPiece!, 
-        capturedBy: movedPiece.color
+      appliedMove,
+      {
+        ...capturedPiece,
+        capturedBy: movedPiece.color,
+        wasActive: capturedPieceWasActive!
       }
     ];
   }
@@ -280,7 +284,7 @@ export abstract class RuleSet {
     board.placePiece(move.pieceId, move.from);
 
     if (move.capture !== undefined) {
-      const { capturedBy, ...piece } = game.getCapturedPiece(move.capture)!;
+      const { capturedBy, wasActive, ...piece } = game.getCapturedPiece(move.capture)!;
 
       board.restorePiece(piece, move.to);
     }
@@ -305,16 +309,14 @@ export abstract class RuleSet {
    * @param game - The game whose history should be updated.
    */
   private recordMove(move: Move, game: Game): void {
-    const checkedAfter = this.getCheckedKings(game.getBoard());
+    const checkedAfter = this.getCheckedKings(game.getBoard() as Board);
 
     const newlyChecked = RuleSet.PLAYER_COLORS.filter(color =>
-      checkedAfter.has(color) && !game.hasPlayerState(color, PlayerState.CHECK)
+      checkedAfter.has(color) && !game.isPlayerInCheck(color)
     );
 
     game.addMoveToHistory(
-      newlyChecked.length > 0
-        ? { ...move, check: newlyChecked }
-        : move
+      newlyChecked.length > 0 ? { ...move, check: newlyChecked } : move
     );
   }
 
@@ -428,9 +430,17 @@ export abstract class RuleSet {
    * @param pieceId - The id of the piece to compute legal moves for.
    * @param game - The game providing board and player-state context.
    * @returns All legal moves available to the piece.
+   * 
+   * @remarks
+   * The `as Board` cast here (and in {@link RuleSet.hasLegalMove}) is
+   * needed because `game.getBoard()` returns `ReadonlyBoard`, while the
+   * candidate-generation/legality pipeline below needs to pass a real
+   * `Board` into `MoveGenerator` and `RuleSet.isMoveLegal`. This is safe:
+   * `RuleSet` is the trusted internal component allowed to hold a
+   * mutable `Board` reference (see `Game.getBoard`).
    */
   public getLegalMoves(pieceId: string, game: Game): Move[] {
-    const board = game.getBoard();
+    const board = game.getBoard() as Board;
     const selectedPiece = board.getPiece(pieceId);
     if (!selectedPiece) return [];
 
@@ -463,7 +473,7 @@ export abstract class RuleSet {
     board: Board,
     game: Game
   ): Move[] {
-    const from = board.getPositionOf(piece.id)!;
+    const from = board.getSquareOf(piece.id)!;
 
     const pseudoLegalMoves = this.moveGenerator
       .generateMovesForPiece(piece, board)
@@ -506,7 +516,7 @@ export abstract class RuleSet {
       occupant !== undefined &&
       occupant.type === PieceType.KING &&
       occupant.color !== color &&
-      occupant.active
+      board.isPieceActive(occupant.id)
     );
   }
 
@@ -704,7 +714,7 @@ export abstract class RuleSet {
    * @param game - The game providing board and player-state context.
    */
   private hasLegalMove(pieceId: string, game: Game): boolean {
-    const board = game.getBoard();
+    const board = game.getBoard() as Board;
     const selectedPiece = board.getPiece(pieceId);
     if (!selectedPiece) return false;
 
@@ -761,7 +771,7 @@ export abstract class RuleSet {
    * has no prior move in history at all.
    */
   protected findCheckmateArchitect(checkedColor: Color, game: Game): Color | undefined {
-    if (!this.isKingInCheck(game.getBoard(), checkedColor)) return undefined;
+    if (!this.isKingInCheck(game.getBoard() as Board, checkedColor)) return undefined;
 
     const history = game.getHistory();
     const windowStart = this.findLastMoveIndexOf(checkedColor, history, game) + 1;
@@ -819,7 +829,7 @@ export abstract class RuleSet {
     window: Move[],
     skip: number
   ): boolean {
-    const board = game.getBoard().clone();
+    const board = (game.getBoard() as Board).clone();
 
     for (let i = window.length - 1; i >= skip; i--) {
       this.undoMoveOnBoard(window[i], board, game);
@@ -833,9 +843,9 @@ export abstract class RuleSet {
 
     const scratchGame = new Game(this, board.exportPieces());
     // Ensures castling remains correctly forbidden out of check in the
-    // reconstructed position (getCastleMoves gates on PlayerState.CHECK
+    // reconstructed position (getCastleMoves gates on Game.isPlayerInCheck
     // rather than re-deriving it from the board).
-    scratchGame.setPlayerState(checkedColor, PlayerState.CHECK);
+    scratchGame.setPlayerInCheck(checkedColor, true);
 
     return this.isPlayerMate(checkedColor, scratchGame);
   }
