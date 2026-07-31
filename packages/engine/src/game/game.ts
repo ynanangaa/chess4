@@ -16,10 +16,14 @@ const NEXT_PLAYER_COLOR = new Map<Color, Color>([
 /**
  * Main public API and stateful orchestrator for a four-player chess game.
  *
- * See prior class-level documentation — unchanged in spirit. The main
- * change here is that player state is now exposed as {@link PlayerStatus}
- * (independent `inCheck`/`checkmated`/`stalemated`/`resigned`/`timedOut`
- * flags) rather than a single-value `PlayerState` stack.
+ * `Game` owns the board, move history, per-player scores, and per-player
+ * status, and delegates all rules decisions (legality, check detection,
+ * scoring, draw/endgame conditions) to the {@link RuleSet} it was built
+ * with. Each player's status is exposed as an independent set of boolean
+ * flags (see {@link PlayerStatus}: `inCheck`, `checkmated`, `stalemated`,
+ * `resigned`, `timedOut`) rather than a single exclusive state, since
+ * these conditions can coexist (e.g. a resigned player's abandoned
+ * position may later be found checkmated).
  */
 export class Game {
   private board: Board;

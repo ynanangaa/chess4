@@ -310,35 +310,61 @@ private autoPlayOrSkip(color: Color, game: Game): boolean {
     }
   }
 
-  /**
-   * Records a move into the game's history, attaching an annotation of
-   * which king(s), if any, became **newly** checked as a direct result of
-   * this move — analogous to the `+`/`#` suffix in standard algebraic
-   * notation.
-   *
-   * A king is only recorded here if it was **not** already in check
-   * immediately before this move (per the game's current
-   * {@link PlayerState.CHECK} tracking, which — since this method always
-   * runs before {@link RuleSet.applyRulesPostMove} recomputes it for the
-   * resulting position — still reflects the state prior to this move).
-   * This correctly attributes a discovered check to whichever move
-   * uncovered it, even when the attacking piece belongs to a different
-   * color than the piece that moved.
-   *
-   * @param move - The applied move to record.
-   * @param game - The game whose history should be updated.
-   */
-  private recordMove(move: Move, game: Game): void {
-    const checkedAfter = this.getCheckedKings(game.getBoard() as Board);
+private recordMove(move: Move, game: Game): void {
+  const checkedAfter = this.getCheckedKings(game.getBoard() as Board);
 
-    const newlyChecked = RuleSet.PLAYER_COLORS.filter(color =>
-      checkedAfter.has(color) && !game.isPlayerInCheck(color)
-    );
+  const newlyChecked = RuleSet.PLAYER_COLORS.filter(color =>
+    checkedAfter.has(color) && this.isCheckCausedByMove(color, move, game)
+  );
 
-    game.addMoveToHistory(
-      newlyChecked.length > 0 ? { ...move, check: newlyChecked } : move
-    );
+  game.addMoveToHistory(
+    newlyChecked.length > 0 ? { ...move, check: newlyChecked } : move
+  );
+}
+
+/**
+ * Determines whether `checkedColor`'s king being in check right after
+ * `move` was applied is causally attributable to `move` itself, rather
+ * than merely a persisting consequence of something that already
+ * happened earlier.
+ *
+ * Mirrors {@link RuleSet.findCheckmateArchitect}'s windowed
+ * counterfactual technique: `checkedColor`'s king can never be in check
+ * immediately after `checkedColor`'s own last move (that would make
+ * their own move illegal), so the only real question is whether `move`
+ * alone — replayed directly on top of the position as it stood right
+ * after `checkedColor`'s own last move, with every intervening move
+ * made by other colors stripped out — still produces check on
+ * `checkedColor`'s king.
+ *
+ * @param checkedColor - A color whose king is currently in check on
+ * `game`'s board, immediately after `move` was applied.
+ * @param move - The just-applied move (already enriched with `capture`
+ * /`castle`/`pawnSpecialMove`, i.e. the exact object produced by
+ * {@link RuleSet.applyMoveOnBoard}). Not yet present in `game`'s history.
+ * @param game - The game providing board/history context.
+ */
+private isCheckCausedByMove(checkedColor: Color, move: Move, game: Game): boolean {
+  const history = game.getHistory();
+  const windowStart = this.findLastMoveIndexOf(checkedColor, history, game) + 1;
+  const window = history.slice(windowStart);
+
+  // No intervening moves since checkedColor's own last move: their king
+  // was certainly not in check right beforehand, so `move` is
+  // necessarily what caused it.
+  if (window.length === 0) return true;
+
+  const board = (game.getBoard() as Board).clone();
+
+  this.undoMoveOnBoard(move, board, game);
+  for (let i = window.length - 1; i >= 0; i -= 1) {
+    this.undoMoveOnBoard(window[i], board, game);
   }
+
+  this.applyMoveOnBoard(move, board);
+
+  return this.isKingInCheck(board, checkedColor);
+}
 
   /**
    * Computes the set of colors whose king is currently in check on `board`,
@@ -392,9 +418,9 @@ private autoPlayOrSkip(color: Color, game: Game): boolean {
   /**
    * Computes a deterministic string key representing the game's current
    * position for repetition-detection purposes, incorporating board
-   * state, the player to move and remaining castling rights, en passant
-   * not being allowed — analogous in purpose to a FEN's position fields.
-   *
+   * state, the player to move, and remaining castling rights — analogous
+   * in purpose to a FEN's position fields, minus an en passant target
+   * field, since this variant does not support en passant.
    *
    * @param game - The game whose position should be hashed.
    * @returns A multi-line string uniquely representing the position,
@@ -424,7 +450,7 @@ private autoPlayOrSkip(color: Color, game: Game): boolean {
   /**
    * Hook invoked after a move (or a skipped/auto-played turn) has been
    * processed, giving subclasses a chance to update derived game state —
-   * typically recomputing each player's {@link PlayerState} (check,
+   * typically recomputing each player's {@link PlayerStatus} (check,
    * checkmate, stalemate), applying draw rules via
    * {@link RuleSet.isDraw}, and calling {@link RuleSet.endGame} when the
    * game has concluded.
@@ -760,7 +786,7 @@ private autoPlayOrSkip(color: Color, game: Game): boolean {
    * these can differ in a four-player context).
    *
    * @remarks
-   * This method trusts `checkedColor`'s {@link PlayerState.CHECKMATE} flag
+   * This method trusts `checkedColor`'s {@link PlayerStatus.checkmated} flag
    * only as a trigger to run analysis, not as ground truth: it independently
    * verifies the king is actually in check on the current board before
    * attempting any causal attribution, returning `undefined` otherwise. This

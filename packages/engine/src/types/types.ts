@@ -134,13 +134,18 @@ export type PieceType = (typeof PieceType)[keyof typeof PieceType];
  * @remarks
  * Deliberately has no mutable fields and no methods — not even an
  * `active` flag. Whether a piece can currently move, capture, or give
- * check is entirely a function of its owner's {@link PlayerStatus}, not
- * of the piece itself: that status can never differ between two pieces
- * of the same color, so storing it per piece would only duplicate the
- * same fact across every piece of that color. Being a plain
- * JSON-serializable object also means a `Piece` can be safely duplicated
- * via `JSON.stringify`/`JSON.parse` when cloning a board, with no risk
- * of shared references leaking between clones.
+ * check is never stored on the piece itself: it depends on its owner's
+ * {@link PlayerStatus} (which records *why* a player might be inactive —
+ * checkmated, stalemated, resigned, timed out), but the actual moment-to-
+ * moment record of *which pieces* are currently active is kept by
+ * {@link Board} in its own internal side-table, synchronized with each
+ * player's `PlayerStatus` by the active `RuleSet` (see
+ * `Board.setPlayerPiecesInactive`) rather than derived from it on every
+ * query. Storing nothing on `Piece` itself avoids duplicating that same
+ * fact across every piece of a color, and keeps a piece a plain,
+ * JSON-serializable object that can be safely duplicated via
+ * `JSON.stringify`/`JSON.parse` when cloning a board, with no risk of
+ * shared references leaking between clones.
  *
  * A piece remains present on the board — occupying its square, and
  * capturable — for as long as it hasn't been captured, regardless of

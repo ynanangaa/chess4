@@ -126,7 +126,7 @@ export class DefaultRuleSet extends RuleSet {
     if (capturedPieceId === undefined) return;
 
     const capturedPiece = _game.getCapturedPiece(capturedPieceId)!;
-    if (!capturedPiece.wasActive) return;   // was: if (!capturedPiece.active) return;
+    if (!capturedPiece.wasActive) return;
 
     if (!_game.isPlayerActive(capturedPiece.capturedBy)) return;
 
@@ -378,17 +378,18 @@ export class DefaultRuleSet extends RuleSet {
    * Computes the currently available castling moves (kingside and/or
    * queenside) for `player`.
    *
-   * A side is available only if: the player is not currently in check and
-   * not resigned/timed-out; neither the king nor that side's rook have
-   * moved from their initial squares; and the square the king passes
-   * through plus its destination square are both unoccupied and not
-   * attacked by any opponent's pseudo-legal moves.
+   * A castling move is available only if:
+   * - the player is neither currently in check nor resigned/timed-out;
+   * - neither the king nor the corresponding rook has previously moved;
+   * - the rook is still on its initial square;
+   * - every square between the king and rook is empty;
+   * - the two squares crossed by the king (its intermediate square and
+   *   destination square) are not attacked by any opponent's pseudo-legal
+   *   move.
    *
-   * @remarks
-   * This does not independently verify a fully clear path for the rook
-   * beyond what's implied by the two squares checked for the king — worth
-   * double-checking against exact board geometry if castling ever
-   * misbehaves near edge-case rook distances.
+   * Note that only the squares the king actually traverses must be free
+   * from attack. For queenside castling, the additional square between the
+   * rook and the king must be empty, but it may be attacked.
    */
   public getCastleMoves(player: Color, game: Game): Move[] {
     if (game.isPlayerInCheck(player) || game.isPlayerResignedOrTimedOut(player)) {
@@ -397,8 +398,12 @@ export class DefaultRuleSet extends RuleSet {
 
     const castle: Move[] = [];
     const board = game.getBoard() as Board;
-    const hasKingMoved = game.hasPieceMoved(`K-${player}`);
-    const from = board.getSquareOf(`K-${player}`)!;
+    const from = board.getKingSquare(player);
+    if (!from) return [];
+
+    const king = board.getPieceAt(from)!;
+    const hasKingMoved = game.hasPieceMoved(king.id);
+    
 
     for (const kingSide of [true, false]) {
       const side = kingSide ? "kingside" : "queenside";
@@ -421,15 +426,23 @@ export class DefaultRuleSet extends RuleSet {
         const direction = castleDirectionOffset(player, kingSide);
         const oneStep = from + direction;
         const doubleStep = oneStep + direction;
+        const thirdStep = doubleStep + direction;
 
-        if (
+        const pathIsClear =
           !board.isOccupied(oneStep) &&
-          !allOpponentsMoves.has(oneStep) &&
           !board.isOccupied(doubleStep) &&
-          !allOpponentsMoves.has(doubleStep)
-        ) {
+          (
+            kingSide ||
+            !board.isOccupied(thirdStep)
+          );
+
+        const kingPathIsSafe =
+          !allOpponentsMoves.has(oneStep) &&
+          !allOpponentsMoves.has(doubleStep);
+
+        if (pathIsClear && kingPathIsSafe) {
           castle.push(this.moveGenerator.buildMove(
-            `K-${player}`,
+            king.id,
             from,
             doubleStep,
             side
@@ -517,11 +530,15 @@ export class DefaultRuleSet extends RuleSet {
    *    (increment). Each history entry is processed at most once.
    * 2. If the current player is already finalized as checkmated or
    *    stalemated, does nothing further.
-   * 3. Otherwise, resets all players' `CHECK` state and recomputes it
-   *    from scratch based on the current board position.
-   * 4. If the current player still has at least one legal move, stops
-   *    here. Otherwise, marks them as `CHECKMATE` (if currently in check)
-   *    or `STALEMATE` (if not).
+   * 3. If the current player's king isn't on the board at all (e.g. a
+   *    custom/test setup without one), does nothing further.
+   * 4. Otherwise, recomputes every color's `inCheck` flag from scratch
+   *    directly from the current board position — there is no separate
+   *    "reset" step, since `inCheck` is a plain boolean that's simply
+   *    overwritten each time.
+   * 5. If the current player still has at least one legal move, stops
+   *    here. Otherwise, marks them `checkmated` (if currently in check)
+   *    or `stalemated` (if not).
    *
    * No-op entirely if the game is already over.
    */

@@ -162,11 +162,12 @@ export function isSamePiece(left: Piece | undefined, right: Piece | undefined): 
  *
  * @remarks
  * Internal — this convention is used throughout the engine (e.g.
- * `RuleSet`/`Board` look up a king via `` `K-${color}` ``). If you build
- * fully custom `Piece` objects, you are free to use any id scheme you
- * like, **except** for pieces the engine specifically expects to find by
- * a conventional id (kings and castling rooks) — see the project README
- * for the exact conventions the engine depends on.
+ * `RuleSet` looks up a rook via `` `R-${player}-${side}` ``, see
+ * `DefaultRuleSet.getCastleMoves`). If you build fully custom `Piece`
+ * objects, you are free to use any id scheme you like, **except** for
+ * pieces the engine specifically expects to find by a conventional id
+ * (castling rooks) — see the project README for the exact conventions
+ * the engine depends on.
  *
  * @param color - The piece's color.
  * @param type - The piece's type.
@@ -207,7 +208,7 @@ export function createDuplicatePieceId(
 // ─── Standard piece builders (internal) ───────────────────────────────────
 
 /**
- * Builds a pawn `Piece using the engine'sstandard id convention.
+ * Builds a pawn `Piece using the engine's standard id convention.
  *
  * @remarks Internal — used to assemble the standard starting setup. Build
  * your own `Piece` objects directly for custom setups.
@@ -222,8 +223,7 @@ export function buildPawn(color: Color, pawnNum: number): Piece {
 }
 
 /**
- * Builds a queen `Piece` in its default active state, using the engine's
- * standard id convention.
+ * Builds a queen `Piece` using the engine's standard id convention.
  *
  * @remarks Internal — used to assemble the standard starting setup.
  */
@@ -237,8 +237,7 @@ export function buildQueen(color: Color): Piece {
 }
 
 /**
- * Builds a king `Piece` in its default active state, using the engine's
- * standard id convention.
+ * Builds a king `Piece` using the engine's standard id convention.
  *
  * @remarks
  * Internal — used to assemble the standard starting setup. Note that the
@@ -255,8 +254,8 @@ export function buildKing(color: Color): Piece {
 }
 
 /**
- * Builds a "duplicate" piece (rook, bishop, or knight) in its default
- * active state, using the engine's standard id convention.
+ * Builds a "duplicate" piece (rook, bishop, or knight) using the engine's
+ * standard id convention (two copies per player per type).
  *
  * Points are assigned automatically: 3 for knights, 5 for bishops and
  * rooks (per this project's four-player point valuation).
