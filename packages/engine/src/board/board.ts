@@ -93,9 +93,9 @@ export interface ReadonlyBoard {
  * once this class is on the hot path of automated search.
  */
 export class Board implements ReadonlyBoard {
-  private grid: Square[] = [];
+  #grid: Square[] = [];
 
-  private kingSquares: Record<Color, number | undefined> = {
+  #kingSquares: Record<Color, number | undefined> = {
     [Color.RED]: undefined,
     [Color.BLUE]: undefined,
     [Color.YELLOW]: undefined,
@@ -107,19 +107,19 @@ export class Board implements ReadonlyBoard {
    * Membership means "cannot move, cannot capture, cannot threaten a
    * square" — the piece otherwise remains a normal, capturable occupant.
    */
-  private inactivePieceIds = new Set<string>();
+  #inactivePieceIds = new Set<string>();
 
-  private readonly config: BoardConfig;
+  #config: BoardConfig;
 
   constructor(
     initialPieces?: BoardSetup,
     config: BoardConfig = 'CONFIG_1'
   ) {
-    this.config = config;
+    this.#config = config;
 
-    this.grid = new Array<Square>(TOTAL_SQUARES).fill(null);
+    this.#grid = new Array<Square>(TOTAL_SQUARES).fill(null);
     for (let squareId = 0; squareId < TOTAL_SQUARES; squareId += 1) {
-      if (!VALID_SQUARES.has(squareId)) this.grid[squareId] = 'OUT';
+      if (!VALID_SQUARES.has(squareId)) this.#grid[squareId] = 'OUT';
     }
 
     const setup = initialPieces ?? this.buildDefaultSetup(config);
@@ -127,17 +127,17 @@ export class Board implements ReadonlyBoard {
     this.assignInitialPieces(setup[0], setup[1]);
 
     const inactivePieceIds = setup.length === 3 ? setup[2] : [];
-    for (const id of inactivePieceIds) this.inactivePieceIds.add(id);
+    for (const id of inactivePieceIds) this.#inactivePieceIds.add(id);
   }
 
   public getConfig(): BoardConfig {
-    return this.config;
+    return this.#config;
   }
 
   public getOccupiedSquares(): Map<number, string> {
     const occupied = new Map<number, string>();
 
-    this.grid.forEach((square, squareId) => {
+    this.#grid.forEach((square, squareId) => {
       if (square !== null && square !== 'OUT') occupied.set(squareId, square.id);
     });
 
@@ -147,7 +147,7 @@ export class Board implements ReadonlyBoard {
   public getOccupiedSquaresByColor(color: Color): [number, string][] {
     const result: [number, string][] = [];
 
-    this.grid.forEach((square, squareId) => {
+    this.#grid.forEach((square, squareId) => {
       if (square !== null && square !== 'OUT' && square.color === color) {
         result.push([squareId, square.id]);
       }
@@ -159,11 +159,11 @@ export class Board implements ReadonlyBoard {
   public getPiece(id: string): Piece | undefined {
     const index = this.findIndexById(id);
 
-    return index === -1 ? undefined : (this.grid[index] as Piece);
+    return index === -1 ? undefined : (this.#grid[index] as Piece);
   }
 
   public getPieceAt(squareId: number): Piece | undefined {
-    const square = this.grid[squareId];
+    const square = this.#grid[squareId];
 
     return square !== undefined && square !== null && square !== 'OUT'
       ? square
@@ -171,7 +171,7 @@ export class Board implements ReadonlyBoard {
   }
 
   public getPiecesByColor(color: Color): Piece[] {
-    return this.grid.filter(
+    return this.#grid.filter(
       (square): square is Piece =>
         square !== null && square !== 'OUT' && square.color === color
     );
@@ -184,17 +184,17 @@ export class Board implements ReadonlyBoard {
   }
 
   public getKingSquare(color: Color): number | undefined {
-    return this.kingSquares[color];
+    return this.#kingSquares[color];
   }
 
   public isOccupied(squareId: number): boolean {
-    const square = this.grid[squareId];
+    const square = this.#grid[squareId];
 
     return square !== undefined && square !== null && square !== 'OUT';
   }
 
   public isValidSquare(id: number): boolean {
-    return this.grid[id] !== undefined && this.grid[id] !== 'OUT';
+    return this.#grid[id] !== undefined && this.#grid[id] !== 'OUT';
   }
 
   /**
@@ -206,7 +206,7 @@ export class Board implements ReadonlyBoard {
    * @param pieceId - The stable id of the piece to check.
    */
   public isPieceActive(pieceId: string): boolean {
-    return !this.inactivePieceIds.has(pieceId);
+    return !this.#inactivePieceIds.has(pieceId);
   }
 
   /**
@@ -227,18 +227,18 @@ export class Board implements ReadonlyBoard {
     const fromIndex = this.findIndexById(pieceId);
     if (fromIndex === -1) return undefined;
 
-    const piece = this.grid[fromIndex] as Piece;
-    const occupant = this.grid[squareId];
+    const piece = this.#grid[fromIndex] as Piece;
+    const occupant = this.#grid[squareId];
 
     if (occupant !== null && occupant !== 'OUT' && occupant.type === PieceType.KING) {
-      this.kingSquares[occupant.color] = undefined;
+      this.#kingSquares[occupant.color] = undefined;
     }
 
-    this.grid[fromIndex] = null;
-    this.grid[squareId] = piece;
+    this.#grid[fromIndex] = null;
+    this.#grid[squareId] = piece;
 
     if (piece.type === PieceType.KING) {
-      this.kingSquares[piece.color] = squareId;
+      this.#kingSquares[piece.color] = squareId;
     }
 
     return piece;
@@ -248,11 +248,11 @@ export class Board implements ReadonlyBoard {
     const index = this.findIndexById(pieceId);
     if (index === -1) return undefined;
 
-    const piece = this.grid[index] as Piece;
-    this.grid[index] = null;
+    const piece = this.#grid[index] as Piece;
+    this.#grid[index] = null;
 
-    if (piece.type === PieceType.KING && this.kingSquares[piece.color] === index) {
-      this.kingSquares[piece.color] = undefined;
+    if (piece.type === PieceType.KING && this.#kingSquares[piece.color] === index) {
+      this.#kingSquares[piece.color] = undefined;
     }
 
     return piece;
@@ -276,10 +276,10 @@ export class Board implements ReadonlyBoard {
       );
     }
 
-    this.grid[squareId] = piece;
+    this.#grid[squareId] = piece;
 
     if (piece.type === PieceType.KING) {
-      this.kingSquares[piece.color] = squareId;
+      this.#kingSquares[piece.color] = squareId;
     }
   }
 
@@ -287,10 +287,10 @@ export class Board implements ReadonlyBoard {
     const index = this.findIndexById(pieceId);
     if (index === -1) return;
 
-    const piece = this.grid[index] as Piece;
+    const piece = this.#grid[index] as Piece;
     if (piece.type === PieceType.PAWN) return;
 
-    this.grid[index] = { ...piece, type: PieceType.PAWN };
+    this.#grid[index] = { ...piece, type: PieceType.PAWN };
   }
 
   /**
@@ -308,7 +308,7 @@ export class Board implements ReadonlyBoard {
     for (const piece of this.getPiecesByColor(color)) {
       if (piece.type === PieceType.KING && keepKingActive) continue;
 
-      this.inactivePieceIds.add(piece.id);
+      this.#inactivePieceIds.add(piece.id);
     }
   }
 
@@ -316,18 +316,18 @@ export class Board implements ReadonlyBoard {
     const index = this.findIndexById(pieceId);
     if (index === -1) return;
 
-    const piece = this.grid[index] as Piece;
+    const piece = this.#grid[index] as Piece;
     if (piece.type !== PieceType.PAWN) return;
 
-    this.grid[index] = { ...piece, type: newType };
+    this.#grid[index] = { ...piece, type: newType };
   }
 
   public clone(): Board {
-    const clone = new Board([[], []], this.config);
+    const clone = new Board([[], []], this.#config);
 
-    clone.grid = [...this.grid];
-    clone.kingSquares = { ...this.kingSquares };
-    clone.inactivePieceIds = new Set(this.inactivePieceIds);
+    clone.#grid = [...this.#grid];
+    clone.#kingSquares = { ...this.#kingSquares };
+    clone.#inactivePieceIds = new Set(this.#inactivePieceIds);
 
     return clone;
   }
@@ -336,18 +336,18 @@ export class Board implements ReadonlyBoard {
     const pieces: Piece[] = [];
     const positions: number[] = [];
 
-    this.grid.forEach((square, squareId) => {
+    this.#grid.forEach((square, squareId) => {
       if (square !== null && square !== 'OUT') {
         pieces.push(square);
         positions.push(squareId);
       }
     });
 
-    return [pieces, positions, Array.from(this.inactivePieceIds)];
+    return [pieces, positions, Array.from(this.#inactivePieceIds)];
   }
 
   private findIndexById(id: string): number {
-    return this.grid.findIndex(
+    return this.#grid.findIndex(
       square => square !== null && square !== 'OUT' && square.id === id
     );
   }
@@ -377,10 +377,10 @@ export class Board implements ReadonlyBoard {
       }
       seenSquares.add(squareId);
 
-      this.grid[squareId] = piece;
+      this.#grid[squareId] = piece;
 
       if (piece.type === PieceType.KING) {
-        this.kingSquares[piece.color] = squareId;
+        this.#kingSquares[piece.color] = squareId;
       }
     });
   }
@@ -390,7 +390,7 @@ export class Board implements ReadonlyBoard {
       throw new RangeError(`Square id ${squareId} is out of range.`);
     }
 
-    if (this.grid[squareId] === 'OUT') {
+    if (this.#grid[squareId] === 'OUT') {
       throw new RangeError(`Square id ${squareId} is not part of the playable board.`);
     }
   }
@@ -423,7 +423,7 @@ export class Board implements ReadonlyBoard {
     const entries: string[] = [];
 
     for (let squareId = 0; squareId < TOTAL_SQUARES; squareId += 1) {
-      const square = this.grid[squareId];
+      const square = this.#grid[squareId];
       if (square !== null && square !== 'OUT') {
         entries.push(`${square.id},${squareId}`);
       }

@@ -1,2 +1,2 @@
-export { Game } from './game';
+export * from './game';
 export { GameState } from './game-state';

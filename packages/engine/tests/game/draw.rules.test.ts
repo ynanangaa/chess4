@@ -11,6 +11,7 @@ import {
 } from '../../src';
 import { buildDuplicatePiece, buildKing, buildQueen } from "../../src/utils/utils";
 import { createClassicGame, findMoveTo } from '../test-utils';
+import { getMutableGameInternals } from '../../src/game';
 
 // "Stateless" RuleSet instance used to call the draw predicates directly
 // (isDrawByInsufficientMaterial / isDrawBy50MovesRule), without having to
@@ -252,7 +253,7 @@ describe('Draw rules', () => {
       const game = createLoneKingsGame();
 
       for (let i = 0; i < 199; i += 1) {
-        game.incrementMoveClock();
+        getMutableGameInternals(game).incrementMoveClock();
       }
 
       expect(freshRuleSet().isDrawBy50MovesRule(game)).toBe(false);
@@ -262,7 +263,7 @@ describe('Draw rules', () => {
       const game = createLoneKingsGame();
 
       for (let i = 0; i < 200; i += 1) {
-        game.incrementMoveClock();
+        getMutableGameInternals(game).incrementMoveClock();
       }
 
       expect(freshRuleSet().isDrawBy50MovesRule(game)).toBe(true);
@@ -292,7 +293,7 @@ describe('Draw rules', () => {
       ]);
 
       for (let i = 0; i < 199; i += 1) {
-        game.incrementMoveClock();
+        getMutableGameInternals(game).incrementMoveClock();
       }
 
       expect(game.isOver()).toBe(false);

@@ -13,6 +13,7 @@ import {
   createPieceId 
 } from "../../src/utils/utils";
 import { advanceToPlayer, createClassicGame, findMoveTo } from '../test-utils';
+import { getMutableGameInternals } from '../../src/game';
 
 describe('Claim victory', () => {
   let game: Game;
@@ -53,7 +54,7 @@ describe('Claim victory', () => {
   });
 
   test('cannot claim victory with less than a 21-point lead', () => {
-    game.incrementPlayerScore(Color.RED, 15);
+    getMutableGameInternals(game).incrementPlayerScore(Color.RED, 15);
 
     // +3 points for capturing the remaining knight.
     move(createDuplicatePieceId(Color.RED, PieceType.KNIGHT, true), 5, 8);
@@ -72,7 +73,7 @@ describe('Claim victory', () => {
   });
 
   test('cannot claim victory with exactly a 20-point lead', () => {
-    game.incrementPlayerScore(Color.RED, 20);
+    getMutableGameInternals(game).incrementPlayerScore(Color.RED, 20);
 
     advanceToPlayer(game, Color.RED);
 
@@ -83,7 +84,7 @@ describe('Claim victory', () => {
   });
 
   test('claims victory immediately with a lead of at least 21 points', () => {
-    game.incrementPlayerScore(Color.RED, 20);
+    getMutableGameInternals(game).incrementPlayerScore(Color.RED, 20);
 
     // +3 points for capturing the remaining knight.
     move(createDuplicatePieceId(Color.RED, PieceType.KNIGHT, true), 5, 8);
