@@ -1,7 +1,8 @@
-import type { Game } from '@chess4/engine';
+//import type { Game } from '@chess4/engine';
+import { GameService } from '../services/game-service';
 
 interface GameOverBannerProps {
-  game: Game;
+  game: GameService;
 }
 
 export function GameOverBanner({ game }: GameOverBannerProps) {

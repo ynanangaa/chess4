@@ -1,6 +1,7 @@
 import { Color as EngineColor } from '@chess4/engine';
 import type { CapturedPiece, Color, Game } from '@chess4/engine';
 import { Piece } from '../pieces/Piece';
+import { GameService } from '../services/game-service';
 
 const PLAYER_ORDER: Color[] = [
   EngineColor.RED,
@@ -10,7 +11,7 @@ const PLAYER_ORDER: Color[] = [
 ];
 
 interface CapturedPiecesTrayProps {
-  game: Game;
+  game: GameService;
 }
 
 export function CapturedPiecesTray({ game }: CapturedPiecesTrayProps) {
@@ -40,7 +41,7 @@ export function CapturedPiecesTray({ game }: CapturedPiecesTrayProps) {
                 )}
                 {pieces.map(piece => (
                   <div key={piece.id} className="w-6 h-6 opacity-90">
-                    <Piece piece={piece} />
+                    <Piece piece={piece} inactive={!piece.wasActive} />
                   </div>
                 ))}
               </div>

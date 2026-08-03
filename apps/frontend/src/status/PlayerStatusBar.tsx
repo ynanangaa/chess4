@@ -1,5 +1,6 @@
 import { Color as EngineColor } from '@chess4/engine';
 import type { Color, Game, PlayerStatus } from '@chess4/engine';
+import { GameService } from '../services/game-service';
 
 const PLAYER_ORDER: Color[] = [
   EngineColor.RED,
@@ -25,7 +26,7 @@ function statusLabel(status: PlayerStatus): string | null {
 }
 
 interface PlayerStatusBarProps {
-  game: Game;
+  game: GameService;
 }
 
 export function PlayerStatusBar({ game }: PlayerStatusBarProps) {

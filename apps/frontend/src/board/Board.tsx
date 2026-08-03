@@ -98,7 +98,7 @@ export function Board({
                 : '',
             ].join(' ')}
           >
-            {piece && <Piece piece={piece} />}
+            {piece && <Piece piece={piece} inactive={!board.isPieceActive(piece.id)} />}
 
             {isLegalDestination && piece && highlights && (
               /*

@@ -7,6 +7,7 @@ import {
   Color,
   SquareCoords,
 } from '../src';
+import { getMutableGameInternals } from '../src/game';
 
 type InitialPosition = [Piece[], number[]];
 
@@ -20,7 +21,7 @@ export function findMoveTo(game: Game, pieceId: string, to: number): Move | unde
 
 export function advanceToPlayer(game: Game, color: Color): void {
   while (game.getCurrentPlayerColor() !== color) {
-    game.advanceCurrentPlayer();
+    getMutableGameInternals(game).advanceCurrentPlayer();
   }
 }
 

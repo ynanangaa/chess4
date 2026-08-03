@@ -1,7 +1,8 @@
-import type { Game } from '@chess4/engine';
+//import type { Game } from '@chess4/engine';
+import { GameService } from '../services/game-service';
 
 interface ScorePanelProps {
-  game: Game;
+  game: GameService;
 }
 
 const COLOR_DOT_CLASSES: Record<string, string> = {
