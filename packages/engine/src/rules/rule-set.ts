@@ -515,16 +515,22 @@ export abstract class RuleSet {
    * moment could end the game for a reason wholly unrelated to the
    * resignation — one the engine would otherwise only ever surface once
    * an actual move is made.
-   *
+   * 
+   * @param awardBonus - Whether reaching a sole survivor here should
+   * award the 20-point bonus. `false` when called from post-move draw
+   * handling, since a checkmate/stalemate elimination that drops the
+   * active count to one has already awarded that player points via
+   * `awardMatePoints` — the bonus only applies to resignation/timeout,
+   * which award nothing on their own.
    * @returns `true` if this call ended the game; `false` otherwise.
    */
-  protected endGameIfSoleSurvivor(game: Game): boolean {
+  protected endGameIfSoleSurvivor(game: Game, awardBonus: boolean = true): boolean {
     if (game.isOver()) return false;
 
     const activePlayers = this.getActivePlayers(game);
     if (activePlayers.length !== 1) return false;
 
-    if (!this.hasAwardedSoleSurvivorBonus) {
+    if (awardBonus && !this.hasAwardedSoleSurvivorBonus) {
       this.hasAwardedSoleSurvivorBonus = true;
       this.awardPlayerPoints(activePlayers[0], 20, game);
     }

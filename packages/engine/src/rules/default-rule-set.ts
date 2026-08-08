@@ -140,7 +140,7 @@ export class DefaultRuleSet extends RuleSet {
   private endGameForDrawStatus(game: Game, isDraw: boolean): void {
     if (game.isOver()) return;
 
-    if (this.endGameIfSoleSurvivor(game)) return;
+    if (this.endGameIfSoleSurvivor(game, false)) return;
 
     if (!isDraw) return;
 
