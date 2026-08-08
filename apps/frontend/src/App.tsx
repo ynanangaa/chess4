@@ -8,6 +8,7 @@ import { GameOverBanner } from './status/GameOverBanner';
 import { gameService } from './services/game-service';
 import { useGameService } from './services/useGameService';
 import { NewGameButton } from './status/NewGameButton';
+import { ResignButtons } from './status/ResignButtons';
 
 function App() {
   const game = useGameService();
@@ -70,14 +71,17 @@ function App() {
           <GameOverBanner game={gameService} />
 
           <PlayerStatusBar game={gameService} />
-
-          <Board
-            board={board}
-            selectedSquareId={selectedSquareId}
-            selectedColor={selectedPiece?.color}
-            legalDestinations={legalMoves.map(move => move.to)}
-            onSquareClick={handleSquareClick}
-          />
+          
+          <div className="relative w-full max-w-[700px] mx-auto">
+            <Board
+              board={board}
+              selectedSquareId={selectedSquareId}
+              selectedColor={selectedPiece?.color}
+              legalDestinations={legalMoves.map(move => move.to)}
+              onSquareClick={handleSquareClick}
+            />
+            <ResignButtons game={gameService}/>
+          </div>
         </div>
       </div>
     </div>

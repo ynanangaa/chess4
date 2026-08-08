@@ -68,7 +68,7 @@ export function Board({
 
   return (
     <div
-      className="grid aspect-square w-full max-w-[700px] mx-auto border border-slate-700"
+      className="grid aspect-square w-full border border-slate-700"
       style={{
         gridTemplateColumns: `repeat(${BOARD_SIZE}, minmax(0, 1fr))`,
         gridTemplateRows: `repeat(${BOARD_SIZE}, minmax(0, 1fr))`,

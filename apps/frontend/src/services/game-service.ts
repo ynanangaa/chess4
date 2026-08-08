@@ -88,12 +88,36 @@ export const gameService = {
   },
 
   resignPlayer(color: Color): void {
+    if (game.isOver() || !game.isPlayerActive(color)) return;
+
+    const wasCurrentPlayer = game.getCurrentPlayerColor() === color;
+
     game.resignPlayer(color);
+
+    if (wasCurrentPlayer) {
+      // Resigning doesn't itself advance the turn (see RuleSet.resignPlayer).
+      // If the resigning player was the one currently up, hand control back
+      // to the engine's normal turn-resolution logic — the same path that
+      // already correctly auto-plays a random king move if one exists, or
+      // freezes the king and passes the turn on if not (see
+      // RuleSet.advanceTurn / autoPlayOrSkip / settleUpcomingTurns).
+      game.advanceTurn();
+    }
+
     notify();
   },
 
   timeOutPlayer(color: Color): void {
+    if (game.isOver() || !game.isPlayerActive(color)) return;
+
+    const wasCurrentPlayer = game.getCurrentPlayerColor() === color;
+
     game.timeOutPlayer(color);
+
+    if (wasCurrentPlayer) {
+      game.advanceTurn();
+    }
+
     notify();
   },
 
