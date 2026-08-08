@@ -138,13 +138,12 @@ export class DefaultRuleSet extends RuleSet {
   }
 
   private endGameForDrawStatus(game: Game, isDraw: boolean): void {
-    const activePlayers = this.getActivePlayers(game);
+    if (game.isOver()) return;
 
-    if (activePlayers.length !== 1 && !isDraw) {
-      return;
-    }
+    if (this.endGameIfSoleSurvivor(game)) return;
 
-    // CHANGED: game.setGameStatus(...) → internals
+    if (!isDraw) return;
+
     getMutableGameInternals(game).setGameStatus(GameStatus.OVER);
   }
 
@@ -386,7 +385,7 @@ export class DefaultRuleSet extends RuleSet {
 
         if (game.isPlayerResignedOrTimedOut(color)) {
 
-            if (game.isPlayerStalled(color))
+            if (game.isPlayerStalled(color) || game.isPlayerCheckMated(color))
                 // CHANGED: game.setPlayerInactive(color) → direct board call
                 getMutableBoard(game).setPlayerPiecesInactive(color);
             else

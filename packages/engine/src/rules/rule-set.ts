@@ -51,6 +51,14 @@ export abstract class RuleSet {
     Color.RED, Color.BLUE, Color.YELLOW, Color.GREEN
   ];
 
+  /**
+   * Guards the one-time sole-survivor bonus (see
+   * {@link RuleSet.endGameIfSoleSurvivor}) so it is only ever awarded
+   * once per game — active-player count is monotonically decreasing, so
+   * it can only ever reach exactly one once.
+   */
+  private hasAwardedSoleSurvivorBonus = false;
+
   constructor(
     protected readonly moveGenerator: MoveGenerator
   ) {}
@@ -448,6 +456,27 @@ export abstract class RuleSet {
     );
   }
 
+  /**
+   * Allows a player to claim victory and end the game early when exactly
+   * two active players remain and they hold a decisive lead.
+   *
+   * The claim succeeds only if:
+   * - Exactly two active players remain in the game.
+   * - `player`'s score exceeds the other active player's score by more
+   *   than 20 points — chosen so that awarding the standard sole-survivor
+   *   points to the opponent can never change the eventual winner.
+   *
+   * On success, `player` resigns via {@link RuleSet.resignPlayer}, which
+   * — since this leaves exactly one active player remaining — triggers
+   * {@link RuleSet.endGame} on its own and awards the surviving opponent
+   * the standard 20-point sole-survivor bonus (see
+   * `DefaultRuleSet.endGameForDrawStatus`). This method itself no longer
+   * awards points or ends the game directly; it only validates the claim
+   * and triggers the resignation.
+   *
+   * @returns `true` if the claim was valid (`player` has now resigned and
+   * the game has ended as a result); `false` otherwise (no state changed).
+   */
   public claimVictory(player: Color, game: Game): boolean {
     const activePlayers = this.getActivePlayers(game);
 
@@ -464,10 +493,43 @@ export abstract class RuleSet {
 
     this.resignPlayer(player, game);
 
-    this.awardPlayerPoints(otherPlayer, 20, game);
+    return true;
+  }
 
-    this.endGame(game);
+  /**
+   * If exactly one active player remains in `game`, ends the game and
+   * awards that player the standard 20-point sole-survivor bonus (once
+   * per game). No-op if the game is already over or if more than one
+   * player remains active.
+   *
+   * Called directly by {@link RuleSet.resignPlayer} /
+   * {@link RuleSet.timeOutPlayer}, so a resignation or timeout that
+   * leaves a single survivor ends the game immediately — and again from
+   * {@link RuleSet.endGame}'s normal post-move handling, so the same
+   * condition arising from a checkmate/stalemate elimination is caught
+   * too.
+   *
+   * Deliberately narrower than a full {@link RuleSet.isDraw} evaluation:
+   * resigning or timing out doesn't itself change board material, so
+   * re-running draw detection (e.g. insufficient material) at that exact
+   * moment could end the game for a reason wholly unrelated to the
+   * resignation — one the engine would otherwise only ever surface once
+   * an actual move is made.
+   *
+   * @returns `true` if this call ended the game; `false` otherwise.
+   */
+  protected endGameIfSoleSurvivor(game: Game): boolean {
+    if (game.isOver()) return false;
 
+    const activePlayers = this.getActivePlayers(game);
+    if (activePlayers.length !== 1) return false;
+
+    if (!this.hasAwardedSoleSurvivorBonus) {
+      this.hasAwardedSoleSurvivorBonus = true;
+      this.awardPlayerPoints(activePlayers[0], 20, game);
+    }
+
+    getMutableGameInternals(game).setGameStatus(GameStatus.OVER);
     return true;
   }
 
@@ -486,6 +548,7 @@ export abstract class RuleSet {
   public resignPlayer(color: Color, game: Game): void {
     getMutableGameInternals(game).setPlayerResigned(color);
     getMutableBoard(game).setPlayerPiecesInactive(color, true);
+    this.endGameIfSoleSurvivor(game);
   }
 
   /**
@@ -496,6 +559,7 @@ export abstract class RuleSet {
   public timeOutPlayer(color: Color, game: Game): void {
     getMutableGameInternals(game).setPlayerTimedOut(color);
     getMutableBoard(game).setPlayerPiecesInactive(color, true);
+    this.endGameIfSoleSurvivor(game);
   }
 
   protected awardPlayerPoints(

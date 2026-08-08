@@ -25,7 +25,7 @@ describe('Game turn advancement', () => {
       ]
     ]);
 
-    game.resignPlayer(Color.RED, true);
+    game.resignPlayer(Color.RED);
 
     expect(game.advanceTurn()).toBe(true);
     expect(game.getCurrentPlayerColor()).toBe(Color.BLUE);
@@ -52,7 +52,7 @@ describe('Game turn advancement', () => {
       ]
     ]);
 
-    game.resignPlayer(Color.RED, true);
+    game.resignPlayer(Color.RED);
 
     expect(game.advanceTurn()).toBe(true);
 
