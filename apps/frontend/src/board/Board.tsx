@@ -1,10 +1,11 @@
 import { useMemo } from 'react';
-import type { ReadonlyBoard as EngineBoard, Color } from '@chess4/engine';
+import { ReadonlyBoard as EngineBoard, Color } from '@chess4/engine';
 import { buildAllSquares, toGridPosition, BOARD_SIZE } from './boardGeometry';
 import { Piece } from '../pieces/Piece';
 
 interface BoardProps {
   board: EngineBoard;
+  perspective?: Color;
   selectedSquareId?: number;
   selectedColor?: Color;
   legalDestinations?: number[];
@@ -50,6 +51,7 @@ const HIGHLIGHT_CLASSES: Record<
 
 export function Board({
   board,
+  perspective = Color.RED,
   selectedSquareId,
   selectedColor,
   legalDestinations = [],
@@ -76,7 +78,7 @@ export function Board({
     >
       {squares.map(({ squareId, row, col }) => {
         const isValid = board.isValidSquare(squareId);
-        const { gridRow, gridCol } = toGridPosition(row, col);
+        const { gridRow, gridCol } = toGridPosition(row, col, perspective);
         const isDark = (row + col) % 2 === 0;
         const piece = isValid ? board.getPieceAt(squareId) : undefined;
         const isSelected = squareId === selectedSquareId;

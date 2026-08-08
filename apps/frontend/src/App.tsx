@@ -9,6 +9,7 @@ import { gameService } from './services/game-service';
 import { useGameService } from './services/useGameService';
 import { NewGameButton } from './status/NewGameButton';
 import { ResignButtons } from './status/ResignButtons';
+import { ClaimVictoryNotice } from './status/ClaimVictoryNotice';
 
 function App() {
   const game = useGameService();
@@ -63,6 +64,7 @@ function App() {
           <NewGameButton />
           <ScorePanel game={gameService} />
           <CapturedPiecesTray game={gameService} />
+          <ClaimVictoryNotice game={gameService} />
         </div>
 
         <div className="order-1 lg:order-2">
@@ -75,6 +77,7 @@ function App() {
           <div className="relative w-full max-w-[700px] mx-auto">
             <Board
               board={board}
+              perspective={game.getCurrentPlayerColor()}
               selectedSquareId={selectedSquareId}
               selectedColor={selectedPiece?.color}
               legalDestinations={legalMoves.map(move => move.to)}
