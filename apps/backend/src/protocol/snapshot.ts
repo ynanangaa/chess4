@@ -1,10 +1,11 @@
-import { Color, Game, PlayerStatus } from '@chess4/engine';
+import { Color, Game, Move, PlayerStatus } from '@chess4/engine';
 import type { GameSnapshot } from './messages';
 
 const PLAYER_COLORS: Color[] = [Color.RED, Color.BLUE, Color.YELLOW, Color.GREEN];
 
 export function buildSnapshot(game: Game): GameSnapshot {
   const board = game.getBoard();
+  const currentPlayer = game.getCurrentPlayerColor();
 
   const pieces = Array.from(board.getOccupiedSquares().entries()).map(
     ([squareId, pieceId]) => {
@@ -29,13 +30,22 @@ export function buildSnapshot(game: Game): GameSnapshot {
     PLAYER_COLORS.map(color => [color, game.getPlayer(color).getScore()])
   ) as Record<Color, number>;
 
+  const legalMoves: Record<string, Move[]> = {};
+  if (!game.isOver()) {
+    for (const piece of board.getPiecesByColor(currentPlayer)) {
+      const moves = game.getLegalMoves(piece.id);
+      if (moves.length > 0) legalMoves[piece.id] = moves;
+    }
+  }
+
   return {
     pieces,
-    currentPlayer: game.getCurrentPlayerColor(),
+    currentPlayer,
     isOver: game.isOver(),
     statuses,
     scores,
     capturedPieces: game.getAllCapturedPieces(),
     historyLength: game.getHistory().length,
+    legalMoves
   };
 }

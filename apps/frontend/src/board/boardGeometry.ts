@@ -8,6 +8,49 @@ export interface SquareDescriptor {
   col: number;
 }
 
+/**
+ * Set of every valid (playable) square id on the 14×14 cross-shaped
+ * board — the four 3×3 corners are excluded. Mirrors the engine's own
+ * internal `validBoardSquares()` (see `@chess4/engine`'s board-geometry
+ * docs); recomputed here because that function is deliberately not part
+ * of the engine's public API, even though the board's overall shape is
+ * stable, public knowledge (see this file's `BOARD_SIZE` comment).
+ *
+ * Used by `network-game-service.ts` to implement `ReadonlyBoard.isValidSquare`
+ * without a real engine `Board` to delegate to — a network snapshot only
+ * carries *occupied* squares, not the full board shape, since the shape
+ * never changes and would be pure waste to send every broadcast.
+ */
+const VALID_SQUARES: ReadonlySet<number> = buildValidSquares();
+
+function buildValidSquares(): Set<number> {
+  const squares = new Set<number>();
+
+  addRange(squares, 4, 11, 1, 3);
+  addRange(squares, 1, 14, 4, 11);
+  addRange(squares, 4, 11, 12, 14);
+
+  return squares;
+}
+
+function addRange(
+  squares: Set<number>,
+  minRow: number,
+  maxRow: number,
+  minCol: number,
+  maxCol: number
+): void {
+  for (let row = minRow; row <= maxRow; row += 1) {
+    for (let col = minCol; col <= maxCol; col += 1) {
+      squares.add(parseSquareId(row, col));
+    }
+  }
+}
+
+export function isValidSquareId(squareId: number): boolean {
+  return VALID_SQUARES.has(squareId);
+}
+
 export function buildAllSquares(): SquareDescriptor[] {
   const squares: SquareDescriptor[] = [];
 

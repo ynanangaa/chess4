@@ -28,6 +28,20 @@ export interface GameSnapshot {
   scores: Record<Color, number>;
   capturedPieces: CapturedPiece[];
   historyLength: number;
+  /**
+   * Legal moves for every one of the *current player's* pieces that has
+   * at least one, keyed by piece id. Empty for every other color, and
+   * entirely empty once the game is over.
+   *
+   * Computed fresh per broadcast rather than sent on request, so the
+   * client never needs a separate round-trip just to preview legal
+   * destinations before committing to a move (see `network-game-service.ts`).
+   * There's no information-hiding concern in sending only the current
+   * player's moves rather than everyone's — four-player chess is a
+   * full-information game — this is purely to avoid computing and
+   * transmitting moves nobody can currently act on.
+   */
+  legalMoves: Record<string, Move[]>;
 }
 
 export type ServerMessage =
