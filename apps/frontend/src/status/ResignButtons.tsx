@@ -1,6 +1,6 @@
 import { Color as EngineColor } from '@chess4/engine';
 import type { Color } from '@chess4/engine';
-import { gameService, type GameService } from '../services/game-service';
+import type { GameService } from '../services/game-service';
 
 /** Matches the 3x3 cut-corner regions excluded from play (see `validBoardSquares`). */
 const CORNER_FRACTION = 3 / 14;
@@ -22,7 +22,7 @@ function ResignButton({ game, color }: ResignButtonProps) {
 
   function handleClick(): void {
     if (window.confirm(`${color.toUpperCase()}: are you sure you want to resign?`)) {
-      gameService.resignPlayer(color);
+      game.resignPlayer(color);
     }
   }
 
@@ -44,6 +44,13 @@ function ResignButton({ game, color }: ResignButtonProps) {
 
 interface ResignButtonsProps {
   game: GameService;
+  /**
+   * If provided, only this color's resign button is rendered — used in
+   * online mode, where a client may only resign their own assigned
+   * seat. Omit entirely for local pass-and-play, where any of the four
+   * seats may resign at any time from a shared screen.
+   */
+  myColor?: Color;
 }
 
 /**
@@ -60,28 +67,24 @@ interface ResignButtonsProps {
  * the game service — the ancestor must be sized/positioned to exactly
  * match the rendered board (see `App`'s wrapping `relative` container).
  */
-export function ResignButtons({ game }: ResignButtonsProps) {
+export function ResignButtons({ game, myColor }: ResignButtonsProps) {
   const cornerStyle = {
     width: `${CORNER_FRACTION * 100}%`,
     height: `${CORNER_FRACTION * 100}%`,
   };
 
+  const show = (color: Color) => myColor === undefined || myColor === color;
+
   return (
     <>
-      <div
-        className="absolute top-0 left-0 z-10 flex flex-col justify-center gap-1 p-1"
-        style={cornerStyle}
-      >
-        <ResignButton game={game} color={EngineColor.RED} />
-        <ResignButton game={game} color={EngineColor.BLUE} />
+      <div className="absolute top-0 left-0 z-10 flex flex-col justify-center gap-1 p-1" style={cornerStyle}>
+        {show(EngineColor.RED) && <ResignButton game={game} color={EngineColor.RED} />}
+        {show(EngineColor.BLUE) && <ResignButton game={game} color={EngineColor.BLUE} />}
       </div>
 
-      <div
-        className="absolute bottom-0 left-0 z-10 flex flex-col justify-center gap-1 p-1"
-        style={cornerStyle}
-      >
-        <ResignButton game={game} color={EngineColor.YELLOW} />
-        <ResignButton game={game} color={EngineColor.GREEN} />
+      <div className="absolute bottom-0 left-0 z-10 flex flex-col justify-center gap-1 p-1" style={cornerStyle}>
+        {show(EngineColor.YELLOW) && <ResignButton game={game} color={EngineColor.YELLOW} />}
+        {show(EngineColor.GREEN) && <ResignButton game={game} color={EngineColor.GREEN} />}
       </div>
     </>
   );

@@ -15,6 +15,8 @@ export function Lobby({ onBack }: LobbyProps) {
   const roomCode = networkGameService.getRoomCode();
   const myColor = networkGameService.getMyColor();
   const lastError = networkGameService.getLastError();
+  const occupiedSeats = networkGameService.getOccupiedSeats();
+  const hasStarted = networkGameService.getHasStarted();
 
   function handleCreate() {
     networkGameService.createRoom(BACKEND_URL);
@@ -27,35 +29,44 @@ export function Lobby({ onBack }: LobbyProps) {
     }
   }
 
-  // If we have joined and been assigned a color, but the game room is not yet full,
-  // show a waiting screen.
-  if (roomCode && myColor) {
-    const isFull = netGame.isPlayerActive(myColor) || netGame.isOver();
-
-    if (!isFull) {
-      return (
-        <div className="rounded border border-slate-700 bg-slate-800/60 p-6 max-w-md w-full text-center">
-          <h2 className="text-xl font-bold mb-2">Room Created!</h2>
-          <p className="text-slate-400 text-sm mb-4">Share this code with 3 other players:</p>
-          <div className="bg-slate-900 border border-slate-700 rounded py-2 px-4 text-2xl font-mono tracking-widest font-bold text-amber-400 mb-6 select-all">
-            {roomCode}
-          </div>
-          <div className="flex flex-col items-center gap-2">
-            <span className="inline-block w-3 h-3 rounded-full bg-amber-400 animate-ping mb-2" />
-            <p className="text-sm font-semibold capitalize text-slate-300">
-              Assigned Seat: <span className="font-bold">{myColor}</span>
-            </p>
-            <p className="text-xs text-slate-500">Waiting for other players to connect...</p>
-          </div>
-          <button
-            onClick={() => { networkGameService.disconnect(); onBack(); }}
-            className="mt-6 text-xs text-slate-400 hover:text-slate-200 underline"
-          >
-            Leave Room
-          </button>
+  // If we have joined and been assigned a color, but the room hasn't
+  // filled all four seats yet, show a waiting screen.
+  if (roomCode && myColor && !hasStarted) {
+    return (
+      <div className="rounded border border-slate-700 bg-slate-800/60 p-6 max-w-md w-full text-center">
+        <h2 className="text-xl font-bold mb-2">Room Created!</h2>
+        <p className="text-slate-400 text-sm mb-4">Share this code with 3 other players:</p>
+        <div className="bg-slate-900 border border-slate-700 rounded py-2 px-4 text-2xl font-mono tracking-widest font-bold text-amber-400 mb-6 select-all">
+          {roomCode}
         </div>
-      );
-    }
+        <div className="flex flex-col items-center gap-2">
+          <span className="inline-block w-3 h-3 rounded-full bg-amber-400 animate-ping mb-2" />
+          <p className="text-sm font-semibold capitalize text-slate-300">
+            Assigned Seat: <span className="font-bold">{myColor}</span>
+          </p>
+          <p className="text-xs text-slate-500 mb-1">
+            {occupiedSeats.length}/4 players connected
+          </p>
+          <div className="flex gap-2 mb-2">
+            {occupiedSeats.map(color => (
+              <span
+                key={color}
+                className="w-4 h-4 rounded-full border border-slate-600"
+                style={{ backgroundColor: color }}
+                title={color}
+              />
+            ))}
+          </div>
+          <p className="text-xs text-slate-500">Waiting for other players to connect...</p>
+        </div>
+        <button
+          onClick={() => { networkGameService.disconnect(); onBack(); }}
+          className="mt-6 text-xs text-slate-400 hover:text-slate-200 underline"
+        >
+          Leave Room
+        </button>
+      </div>
+    );
   }
 
   return (

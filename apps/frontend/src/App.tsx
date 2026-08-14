@@ -109,9 +109,9 @@ function App() {
   // Render Lobby screen if in online mode, but we don't have our seat-color assigned yet,
   // or the game hasn't started (the game is not over and no pieces exist on the board snapshot yet).
   const myColor = networkGameService.getMyColor();
-  const gameStarted = board.getOccupiedSquares().size > 0;
+  const hasStarted = networkGameService.getHasStarted();
 
-  if (mode === 'online' && (!myColor || !gameStarted)) {
+  if (mode === 'online' && (!myColor || !hasStarted)) {
     return (
       <div className="min-h-screen bg-slate-900 text-slate-100 flex items-center justify-center p-8">
         <Lobby onBack={handleBack} />
@@ -171,7 +171,10 @@ function App() {
               legalDestinations={legalMoves.map(move => move.to)}
               onSquareClick={handleSquareClick}
             />
-            <ResignButtons game={activeService} />
+            <ResignButtons 
+              game={activeService}
+              myColor={mode === 'online' ? myColor : undefined}
+            />
           </div>
         </div>
 

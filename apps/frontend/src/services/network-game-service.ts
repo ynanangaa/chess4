@@ -1,6 +1,5 @@
 import {
   Color as EngineColor,
-  type Board as EngineBoardType,
   type CapturedPiece,
   type Color,
   type Move,
@@ -36,8 +35,16 @@ interface GameSnapshot {
   legalMoves: Record<string, Move[]>;
 }
 
+/** Mirrors apps/backend/src/protocol/messages.ts — kept in sync by hand for now. */
+interface RoomSnapshot {
+  roomCode: string;
+  occupiedSeats: Color[];
+  hasStarted: boolean;
+}
+
 type ServerMessage =
   | { type: 'joined'; color: Color; roomCode: string }
+  | { type: 'room'; snapshot: RoomSnapshot }
   | { type: 'state'; snapshot: GameSnapshot }
   | { type: 'error'; message: string }
   | { type: 'roomFull' };
@@ -105,11 +112,11 @@ function boardFromSnapshot(snapshot: GameSnapshot | undefined): ReadonlyBoard {
  * unmodified regardless of which one is in use.
  *
  * Unlike the local service, this one holds no real engine `Game` at
- * all — only the most recent {@link GameSnapshot} broadcast by the
- * server, which is the sole source of truth. Every "mutating" method
- * here only *sends a request*; the resulting state change (if any)
- * arrives asynchronously as a `state` message and is what actually
- * triggers a re-render (see `notify()`).
+ * all — only the most recent {@link GameSnapshot} and {@link RoomSnapshot}
+ * broadcast by the server, which together are the sole source of truth.
+ * Every "mutating" method here only *sends a request*; the resulting
+ * state change (if any) arrives asynchronously as a `state`/`room`
+ * message and is what actually triggers a re-render (see `notify()`)
  *
  * @remarks
  * `isValidSquare`/`exportPieces` on the returned board are intentionally
@@ -122,6 +129,7 @@ function boardFromSnapshot(snapshot: GameSnapshot | undefined): ReadonlyBoard {
 function createNetworkGameService() {
   let socket: WebSocket | undefined;
   let snapshot: GameSnapshot | undefined;
+  let roomSnapshot: RoomSnapshot | undefined;
   let myColor: Color | undefined;
   let roomCode: string | undefined;
   let lastError: string | undefined;
@@ -152,6 +160,9 @@ function createNetworkGameService() {
         case 'joined':
           myColor = message.color;
           roomCode = message.roomCode;
+          break;
+        case 'room':
+          roomSnapshot = message.snapshot;
           break;
         case 'state':
           snapshot = message.snapshot;
@@ -195,6 +206,26 @@ function createNetworkGameService() {
 
     getRoomCode(): string | undefined {
       return roomCode;
+    },
+
+    /**
+     * Colors currently occupied by a connected player, per the most
+     * recent `room` broadcast. Empty until the first such broadcast
+     * arrives (immediately after `joined`).
+     */
+    getOccupiedSeats(): Color[] {
+      return roomSnapshot?.occupiedSeats ?? [];
+    },
+
+    /**
+     * Whether every seat in the room has ever been filled — the signal
+     * a lobby view should use to stop waiting and start rendering the
+     * game. Gameplay messages are rejected server-side until this is
+     * `true` (see `GameRoom.hasStarted`), so this should be checked
+     * before ever calling `advanceTurn`/`resignPlayer`/`claimVictory`.
+     */
+    getHasStarted(): boolean {
+      return roomSnapshot?.hasStarted ?? false;
     },
 
     getLastError(): string | undefined {
@@ -307,14 +338,6 @@ function createNetworkGameService() {
     getNextPlayerColor(previous: Color): Color {
       const index = PLAYER_ORDER.indexOf(previous);
       return PLAYER_ORDER[(index + 1) % PLAYER_ORDER.length];
-    },
-    getNextActivePlayerColor(previous: Color): Color {
-      let next = this.getNextPlayerColor(previous);
-      for (let i = 0; i < PLAYER_ORDER.length; i += 1) {
-        if (this.isPlayerActive(next)) return next;
-        next = this.getNextPlayerColor(next);
-      }
-      return next;
     },
     rankPlayersByScore() {
       return [...PLAYER_ORDER]

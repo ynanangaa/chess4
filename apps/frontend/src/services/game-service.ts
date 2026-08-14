@@ -183,9 +183,6 @@ export const gameService = {
   getNextPlayerColor(previous: Color) {
     return game.getNextPlayerColor(previous);
   },
-  getNextActivePlayerColor(previous: Color) {
-    return game.getNextActivePlayerColor(previous);
-  },
   rankPlayersByScore() {
     return game.rankPlayersByScore();
   },
