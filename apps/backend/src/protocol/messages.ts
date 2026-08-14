@@ -44,8 +44,31 @@ export interface GameSnapshot {
   legalMoves: Record<string, Move[]>;
 }
 
+/**
+ * Plain-data serialization of a {@link GameRoom}'s seat occupancy,
+ * broadcast whenever seats change (on join, and on a pre-start
+ * disconnect). Kept separate from {@link GameSnapshot} since seat
+ * occupancy is a property of the room, not of the underlying `Game` —
+ * a `Game` has no concept of which of its four colors currently has a
+ * human seated at it.
+ */
+export interface RoomSnapshot {
+  roomCode: string;
+  /** Colors currently occupied by a connected player, in canonical order. */
+  occupiedSeats: Color[];
+  /**
+   * Whether every seat has ever been filled (see
+   * {@link GameRoom.hasStarted}). Clients should treat this as the
+   * signal to leave the lobby view and start rendering the board —
+   * gameplay messages (`move`/`resign`/`claimVictory`) are rejected by
+   * the server until this is `true`.
+   */
+  hasStarted: boolean;
+}
+
 export type ServerMessage =
   | { type: 'joined'; color: Color; roomCode: string }
+  | { type: 'room'; snapshot: RoomSnapshot }
   | { type: 'state'; snapshot: GameSnapshot }
   | { type: 'error'; message: string }
   | { type: 'roomFull' };

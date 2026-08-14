@@ -1,5 +1,6 @@
 import { Color, Game, Move, PlayerStatus } from '@chess4/engine';
-import type { GameSnapshot } from './messages';
+import type { GameSnapshot, RoomSnapshot } from './messages';
+import { GameRoom } from '../rooms/game-room';
 
 const PLAYER_COLORS: Color[] = [Color.RED, Color.BLUE, Color.YELLOW, Color.GREEN];
 
@@ -47,5 +48,14 @@ export function buildSnapshot(game: Game): GameSnapshot {
     capturedPieces: game.getAllCapturedPieces(),
     historyLength: game.getHistory().length,
     legalMoves
+  };
+}
+
+/** Builds the wire-format seat-occupancy snapshot for a {@link GameRoom}. */
+export function buildRoomSnapshot(room: GameRoom): RoomSnapshot {
+  return {
+    roomCode: room.code,
+    occupiedSeats: room.getOccupiedSeats(),
+    hasStarted: room.hasStarted(),
   };
 }

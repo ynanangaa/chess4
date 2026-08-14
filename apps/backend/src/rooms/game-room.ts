@@ -65,8 +65,10 @@ export class GameRoom {
     return this.started;
   }
 
-  public getOccupiedSeatCount(): number {
-    return PLAYER_ORDER.filter(color => this.seats.get(color)).length;
+  /** Returns every color currently occupied by a connected player,
+   * in canonical order. */
+  public getOccupiedSeats(): Color[] {
+    return PLAYER_ORDER.filter(color => this.seats.get(color));
   }
 
   /**

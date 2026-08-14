@@ -3,7 +3,7 @@ import type { Color } from '@chess4/engine';
 import { GameRoom } from '../rooms/game-room';
 import { RoomManager } from '../rooms/room-manager';
 import type { ClientMessage, ServerMessage } from '../protocol/messages';
-import { buildSnapshot } from '../protocol/snapshot';
+import { buildRoomSnapshot, buildSnapshot } from '../protocol/snapshot';
 
 interface SocketMeta {
   roomCode: string;
@@ -27,17 +27,39 @@ export function attachConnectionHandler(wss: WebSocketServer, rooms: RoomManager
     socket.send(JSON.stringify(message));
   }
 
-  function broadcast(roomCode: string, room: GameRoom): void {
-    const sockets = roomSockets.get(roomCode);
-    if (!sockets) return;
+function broadcastMessage(roomCode: string, message: ServerMessage): void {
+  const sockets = roomSockets.get(roomCode);
+  if (!sockets) return;
 
-    const message: ServerMessage = { type: 'state', snapshot: buildSnapshot(room.getGame()) };
-    const payload = JSON.stringify(message);
-
-    for (const socket of sockets) {
-      if (socket.readyState === socket.OPEN) socket.send(payload);
-    }
+  const payload = JSON.stringify(message);
+  for (const socket of sockets) {
+    if (socket.readyState === socket.OPEN) socket.send(payload);
   }
+}
+
+function broadcastGameState(roomCode: string, room: GameRoom): void {
+  broadcastMessage(roomCode, { type: 'state', snapshot: buildSnapshot(room.getGame()) });
+}
+
+function broadcastRoomState(roomCode: string, room: GameRoom): void {
+  broadcastMessage(roomCode, { type: 'room', snapshot: buildRoomSnapshot(room) });
+}
+
+/**
+ * Rejects a gameplay message (`move`/`resign`/`claimVictory`) sent
+ * before every seat has ever been filled. Necessary because `Game`
+ * itself has no notion of "unseated" colors — all four are equally
+ * playable from the engine's point of view regardless of whether a
+ * human is actually connected to them — so this boundary is the only
+ * place that can enforce it.
+ */
+function requireStarted(room: GameRoom, socket: WebSocket): boolean {
+  if (!room.hasStarted()) {
+    send(socket, { type: 'error', message: 'Game has not started yet.' });
+    return false;
+  }
+  return true;
+}
 
   function registerSocket(socket: WebSocket, roomCode: string): void {
     if (!roomSockets.has(roomCode)) roomSockets.set(roomCode, new Set());
@@ -87,7 +109,8 @@ export function attachConnectionHandler(wss: WebSocketServer, rooms: RoomManager
         registerSocket(socket, room.code);
 
         send(socket, { type: 'joined', color, roomCode: room.code });
-        broadcast(room.code, room);
+        broadcastRoomState(room.code, room);
+        broadcastGameState(room.code, room);
         return;
       }
 
@@ -101,6 +124,8 @@ export function attachConnectionHandler(wss: WebSocketServer, rooms: RoomManager
 
       switch (message.type) {
         case 'move': {
+          if (!requireStarted(room, socket)) return;
+
           if (room.getGame().getCurrentPlayerColor() !== meta.color) {
             send(socket, { type: 'error', message: 'Not your turn.' });
             return;
@@ -112,26 +137,29 @@ export function attachConnectionHandler(wss: WebSocketServer, rooms: RoomManager
             return;
           }
 
-          broadcast(meta.roomCode, room);
+          broadcastGameState(meta.roomCode, room);
           return;
         }
 
         case 'resign': {
+          if (!requireStarted(room, socket)) return;
           if (!room.getGame().isPlayerActive(meta.color)) return;
 
           room.getGame().resignPlayer(meta.color);
-          broadcast(meta.roomCode, room);
+          broadcastGameState(meta.roomCode, room);
           return;
         }
 
         case 'claimVictory': {
+          if (!requireStarted(room, socket)) return;
+
           const claimed = room.getGame().claimVictory(meta.color);
           if (!claimed) {
             send(socket, { type: 'error', message: 'Cannot claim victory.' });
             return;
           }
 
-          broadcast(meta.roomCode, room);
+          broadcastGameState(meta.roomCode, room);
           return;
         }
       }
@@ -146,15 +174,21 @@ export function attachConnectionHandler(wss: WebSocketServer, rooms: RoomManager
       const room = rooms.getRoom(meta.roomCode);
       if (!room) return;
 
+      const wasStarted = room.hasStarted();
       room.handleDisconnect(meta.color);
-      
+
       const remainingSockets = roomSockets.get(meta.roomCode);
       const noOneConnected = !remainingSockets || remainingSockets.size === 0;
-      
+
       if (noOneConnected) {
         rooms.removeRoom(meta.roomCode);
+        return;
+      }
+
+      if (wasStarted) {
+        broadcastGameState(meta.roomCode, room);
       } else {
-        broadcast(meta.roomCode, room);
+        broadcastRoomState(meta.roomCode, room);
       }
     });
   });
