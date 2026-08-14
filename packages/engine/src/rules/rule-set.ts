@@ -123,19 +123,25 @@ export abstract class RuleSet {
    * piece, moved-piece tracking for castling-rights purposes, and
    * post-move check annotations) into the game's history.
    *
-   * `move` is validated against the mover's actual legal moves (see
-   * {@link RuleSet.getLegalMoves}) before anything is applied; if no
-   * legal move matches, the game is left untouched. The canonical legal
-   * move — not the caller-supplied object — is what actually gets
-   * applied, so a caller cannot smuggle in a forged field on an
-   * otherwise-legal `{pieceId, from, to}`.
+   * ### Trust Boundary
+   * This method treats the `move` parameter as a request rather than a
+   * source of truth. It independently re-derives the mover's legal moves 
+   * (see {@link RuleSet.getLegalMoves}) to find a matching **canonical move**. 
+   * 
+   * If a match is found based on the essential coordinates (`pieceId`, 
+   * `from`, `to`), the engine ignores any other fields provided by the 
+   * caller (such as `capture`, `castle`, or `pawnSpecialMove`) and uses 
+   * the values from the canonical move instead. This prevents callers 
+   * from smuggling forged move effects into the game history or board state.
    *
    * This method does **not** advance the turn to the next player; see
    * {@link RuleSet.advanceTurn} for that.
    *
-   * @returns `true` if the move was applied successfully; `false` if the
-   * game is already over, the piece no longer exists on the board, or
-   * `move` does not match any currently legal move for that piece.
+   * @param move - The move request to be applied.
+   * @param game - The game instance to mutate.
+   * @returns `true` if a matching legal move was found and applied; 
+   * `false` if the game is over, the piece is missing, or no legal move 
+   * matches the requested coordinates.
    */
   public applyMove(move: Move, game: Game): boolean {
     if (game.isOver()) return false;
@@ -146,30 +152,25 @@ export abstract class RuleSet {
 
     const canonicalMove = this.getLegalMoves(move.pieceId, game).find(candidate =>
       candidate.to === move.to &&
-      candidate.from === move.from &&
-      candidate.castle === move.castle &&
-      candidate.pawnSpecialMove === move.pawnSpecialMove
+      candidate.from === move.from
     );
     if (!canonicalMove) return false;
 
-    const [appliedMove, capturedPiece]:
-      [Move | undefined, CapturedPiece | undefined]
-        = this.applyMoveOnBoard(canonicalMove, board);
-    if (!appliedMove) return false;
+    const capturedPiece = this.applyMoveOnBoard(canonicalMove, board);
 
     const internals = getMutableGameInternals(game);
 
     if (capturedPiece) {
       internals.addCapturedPiece(capturedPiece.id, capturedPiece);
     }
-    const movedPieceAfter = board.getPiece(appliedMove.pieceId)!;
+    const movedPieceAfter = board.getPiece(move.pieceId)!;
 
-    internals.addMovedPiece(appliedMove.pieceId);
+    internals.addMovedPiece(move.pieceId);
     if (move.castle) {
       const color = movedPieceAfter.color;
       internals.addMovedPiece(`R-${color}-${move.castle}`);
     }
-    this.recordMove(appliedMove, game);
+    this.recordMove(canonicalMove, game);
 
     return true;
   }
@@ -177,14 +178,12 @@ export abstract class RuleSet {
   protected applyMoveOnBoard(
     move: Move,
     board: Board
-  ): [Move | undefined, CapturedPiece | undefined] {
-    let appliedMove = this.withDirectCapture(move, board);
-    const directCapturedId = appliedMove.capture;
+  ): CapturedPiece | undefined {
 
-    this.applyPromotion(appliedMove, board);
+    this.applyPromotion(move, board);
     this.applyCastling(move, board);
 
-    const capturedPieceId = directCapturedId;
+    const capturedPieceId = move.capture;
     const capturedPieceWasActive =
       capturedPieceId !== undefined ? board.isPieceActive(capturedPieceId) : undefined;
     const capturedPiece =
@@ -192,17 +191,13 @@ export abstract class RuleSet {
 
     const movedPiece = board.placePiece(move.pieceId, move.to);
 
-    if (!movedPiece) return [undefined, undefined];
-    if (!capturedPiece) return [appliedMove, undefined];
+    if (!movedPiece) return undefined;
 
-    return [
-      appliedMove,
-      {
-        ...capturedPiece,
+    return capturedPiece ? 
+      { ...capturedPiece, 
         capturedBy: movedPiece.color,
         wasActive: capturedPieceWasActive!
-      }
-    ];
+      }: undefined
   }
 
   private withDirectCapture(move: Move, board: Board): Move {
@@ -394,6 +389,9 @@ export abstract class RuleSet {
     let moves = pseudoLegalMoves.map(to =>
       this.moveGenerator.buildMove(piece.id, from, to)
     );
+
+    // Captures
+    moves = moves.map(m => this.withDirectCapture(m, board));
 
     if (piece.type === PieceType.PAWN) {
       moves = this.withPawnSpecialMoves(piece, from, game, moves);

@@ -8,14 +8,77 @@ import { Color, GameStatus, Piece, PieceType } from "../types";
 import { kingInitialSquareId, rookInitialSquareId } from "../utils/utils";
 import { RuleSet } from "./rule-set";
 
+/**
+ * Concrete, standard four-player ruleset: fills in every `abstract`
+ * member of {@link RuleSet} with the rules of the base (non-team)
+ * variant — individual check/checkmate/stalemate detection, standard
+ * castling and promotion, the four-player scoring economy (captures,
+ * multi-check bonuses, mate/stalemate bonuses, sole-survivor and draw
+ * bonuses), and both draw conditions not already implemented by
+ * `RuleSet` itself (50-move and insufficient-material).
+ *
+ * @remarks
+ * `TeamRuleSet` currently extends this class rather than `RuleSet`
+ * directly; team-specific overrides are expected to replace only the
+ * subset of behavior that differs.
+ */
+
 export class DefaultRuleSet extends RuleSet {
+
+  /**
+   * Guards {@link DefaultRuleSet.awardMatePoints} so a given player's
+   * checkmate/stalemate bonus is only ever paid once, even though
+   * `awardMatePoints` is re-evaluated on every subsequent turn for as
+   * long as that player remains mated. Keyed as `` `${color}-${kind}` ``
+   * (e.g. `"red-checkmate"`).
+   */
   private awardedMateStates = new Set<string>();
+
+  /**
+   * Length of {@link Game.getHistory} the last time capture/multi-check
+   * points were awarded (see {@link DefaultRuleSet.awardPoints}). Used
+   * to ensure those one-time-per-move bonuses are only evaluated once
+   * per new move, even though `awardPoints` itself may run more than
+   * once per turn as inactive players are settled (see
+   * `RuleSet.settleUpcomingTurns`).
+   */
   private awardedMoveHistoryLength = 0;
+
+  /**
+   * Length of {@link Game.getHistory} the last time
+   * {@link DefaultRuleSet.updateGameState} processed the move clock for
+   * the latest move. Mirrors
+   * {@link DefaultRuleSet.awardedMoveHistoryLength}'s purpose, but for
+   * move-clock bookkeeping instead of scoring.
+   */
   private processedHistoryLength = 0;
 
+  /**
+   * Creates a standard four-player ruleset.
+   *
+   * @param moveGenerator - The move generator used to compute
+   * pseudo-legal piece movement (see {@link RuleSet}).
+   */
   constructor(
     moveGenerator: MoveGenerator
   ) { super(moveGenerator); }
+
+  /**
+   * Runs every point-awarding check for the current position. One-time
+   * per-move bonuses (capture, multi-check) are only evaluated the
+   * first time this is called for a given history length (see
+   * {@link DefaultRuleSet.awardedMoveHistoryLength}), since this
+   * method's only caller, {@link RuleSet.applyRulesPostMove}, can run
+   * multiple times per turn as inactive players are settled (see
+   * `RuleSet.settleUpcomingTurns`). Mate/stalemate bonuses and the
+   * draw-share bonus are safely re-evaluated every call, since their own
+   * guards ({@link DefaultRuleSet.markMateAwardPending}, and the
+   * draw-status check itself) are stateless and idempotent per call.
+   *
+   * @param isDraw - Whether the current position has just been
+   * determined to be a draw (see {@link RuleSet.isDraw}); when `true`,
+   * every active player is awarded a flat 10-point draw-share bonus.
+   */
 
   private awardPoints(_game: Game, isDraw: boolean): void {
     if (_game.getHistory().length > this.awardedMoveHistoryLength) {
@@ -78,6 +141,26 @@ export class DefaultRuleSet extends RuleSet {
     }
   }
 
+  /**
+   * Awards checkmate and stalemate bonuses for every color whose status
+   * newly qualifies, guarding each award so it is only ever paid once
+   * per player per mate kind (see
+   * {@link DefaultRuleSet.markMateAwardPending}), even though this
+   * method is re-run on every subsequent call to
+   * {@link DefaultRuleSet.awardPoints} for as long as that status
+   * persists.
+   *
+   * - Checkmate: delegates to
+   *   {@link DefaultRuleSet.awardCheckmatePoints}, crediting whichever
+   *   color's move is found causally responsible (see
+   *   {@link RuleSet.findCheckmateArchitect}).
+   * - Stalemate: the stalemated player themself is awarded 20 points
+   *   *unless* their stalemate stems from a resignation/timeout (i.e.
+   *   they ran their own king out of legal moves while being
+   *   auto-played); every other active player always receives a flat
+   *   10-point share regardless (see
+   *   {@link DefaultRuleSet.awardStalematePoints}).
+   */
   protected awardMatePoints(game: Game): void {
     for (const color of DefaultRuleSet.PLAYER_COLORS) {
       if (
@@ -133,6 +216,11 @@ export class DefaultRuleSet extends RuleSet {
       }
   }
 
+  /**
+   * Ends the game, applying the standard draw/sole-survivor resolution
+   * (see {@link DefaultRuleSet.endGameForDrawStatus}). Implements
+   * {@link RuleSet.endGame}.
+   */
   public endGame(game: Game): void {
     this.endGameForDrawStatus(game, this.isDraw(game));
   }
@@ -216,6 +304,29 @@ export class DefaultRuleSet extends RuleSet {
     return undefined;
   }
 
+  /**
+   * Computes `player`'s currently available castling moves (kingside
+   * and/or queenside). Implements {@link RuleSet.getCastleMoves}.
+   *
+   * A given side is available only if all of the following hold:
+   * - `player` is not currently in check, and has not resigned/timed
+   *   out.
+   * - The king is still on its original starting square and has never
+   *   moved (see {@link Game.hasPieceMoved}).
+   * - The corresponding rook (`` `R-${player}-${side}` ``) is still on
+   *   its original starting square and has never moved.
+   * - Every square between the king and its destination — and, for
+   *   queenside, the extra square the rook passes over — is
+   *   unoccupied.
+   * - Neither the square the king passes through nor its destination
+   *   is attacked by any opposing piece, per pseudo-legal move
+   *   generation (see {@link MoveGenerator.generateAllOpponentsMoves}).
+   *   The king's *current* square doesn't need checking here, since the
+   *   leading not-in-check requirement above already covers it.
+   *
+   * @returns An array containing a castling move for each currently
+   * available side (0, 1, or 2 moves).
+   */
   public getCastleMoves(player: Color, game: Game): Move[] {
     if (game.isPlayerInCheck(player) || game.isPlayerResignedOrTimedOut(player)) {
       return [];
@@ -309,6 +420,17 @@ export class DefaultRuleSet extends RuleSet {
     }
   }
 
+  /**
+   * Computes a pawn's promotion moves: every ordinary destination
+   * (forward step or diagonal capture) available to it, tagged as
+   * `"promotion"`, if and only if the pawn is currently on its
+   * promotion rank (see {@link DefaultRuleSet.canPromote}). Implements
+   * {@link RuleSet.getPromotionMoves}.
+   *
+   * @remarks
+   * This variant always promotes to a queen (see
+   * `RuleSet.applyPromotion`); there is no under-promotion choice.
+   */
   public getPromotionMoves(pawn: Piece, from: number, board: Board): Move[] {
     if (!this.canPromote(pawn, from)) return [];
 
@@ -316,7 +438,23 @@ export class DefaultRuleSet extends RuleSet {
       this.moveGenerator.buildMove(pawn.id, from, to, undefined, "promotion")
     );
   }
-
+  /**
+   * Refreshes derived game state after a move: the move clock (reset
+   * on a capture or pawn move, incremented otherwise — see
+   * {@link DefaultRuleSet.isDrawBy50MovesRule}), every player's
+   * `inCheck` flag, and the current player's checkmate/stalemate
+   * status. Implements {@link RuleSet.updateGameState}.
+   *
+   * No-ops entirely if the game is already over, or if the current
+   * player's king is no longer on the board (defensive guard). Move-clock
+   * bookkeeping is only performed once per new history entry (see
+   * {@link DefaultRuleSet.processedHistoryLength}), since this method —
+   * like {@link DefaultRuleSet.awardPoints} — can be invoked more than
+   * once per turn as inactive players are settled (see
+   * `RuleSet.settleUpcomingTurns`). Checkmate/stalemate for the current
+   * player, once already recorded, is left untouched rather than
+   * re-evaluated.
+   */
   public updateGameState(game: Game): void {
     if (game.isOver()) return;
 
@@ -366,6 +504,17 @@ export class DefaultRuleSet extends RuleSet {
     }
   }
 
+  /**
+   * The per-turn pipeline run after every move settles (see
+   * `RuleSet.settleUpcomingTurns`): refreshes check/mate/stalemate
+   * state ({@link DefaultRuleSet.updateGameState}), awards any points
+   * that state change earns ({@link DefaultRuleSet.awardPoints}),
+   * deactivates the pieces of any player whose status now warrants it
+   * (see {@link DefaultRuleSet.updatePlayerPiecesStatus}), and finally
+   * checks whether the game should end (see
+   * {@link DefaultRuleSet.endGameForDrawStatus}). Implements
+   * {@link RuleSet.applyRulesPostMove}.
+   */
   protected applyRulesPostMove(game: Game): void {
     this.updateGameState(game);
 
@@ -397,6 +546,31 @@ export class DefaultRuleSet extends RuleSet {
     }
   }
 
+  /**
+   * Checks whether the position is drawn due to insufficient mating
+   * material across all still-relevant players (active players, plus
+   * resigned/timed-out ones whose abandoned pieces remain on the
+   * board). Implements {@link RuleSet.isDrawByInsufficientMaterial}.
+   *
+   * A player is excluded from consideration only if inactive for a
+   * reason *other* than resignation/timeout (i.e. already
+   * checkmated/stalemated — their position is already settled). For
+   * every remaining player:
+   *
+   * - If any piece other than a king, bishop, or knight remains,
+   *   material is sufficient and the position is not a draw.
+   * - More than three total pieces (including the king), or exactly
+   *   three including a bishop, is likewise treated as sufficient
+   *   material.
+   *
+   * If no player retains two knights alongside their king, the
+   * position is a draw. Otherwise (someone has king + two knights), the
+   * position is still a draw unless every king currently has at least
+   * two legal destination squares — reflecting that a king with two
+   * knights can, in some corner positions, still force mate against a
+   * king with too few escape squares, an exception standard two-player
+   * insufficient-material rules don't need to account for.
+   */
   public isDrawByInsufficientMaterial(game: Game): boolean {
     const remainingPieces = new Map<Color, Piece[]>([
       [Color.RED, []], [Color.BLUE, []],
@@ -475,6 +649,12 @@ export class DefaultRuleSet extends RuleSet {
     return kingMoveCounts.every(moveCount => moveCount < 2);
   }
 
+  /**
+   * Checks whether the move clock has reached 200 half-moves without a
+   * capture or pawn move — this variant's four-player-scaled
+   * equivalent of the standard 50-move rule. Implements
+   * {@link RuleSet.isDrawBy50MovesRule}.
+   */
   public isDrawBy50MovesRule(game: Game): boolean {
     return game.getMoveClock() >= 200;
   }

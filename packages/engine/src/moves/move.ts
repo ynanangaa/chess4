@@ -19,13 +19,9 @@ export type PawnSpecialMove = "doublestep" | "promotion";
  * A single move, either as a candidate produced by move generation/legality
  * checking, or as a finalized entry in a game's move history.
  *
- * Some fields are populated progressively as a move travels through
- * {@link RuleSet.applyMoveOnBoard}: `capture` is never set by move
- * generation itself (see {@link MoveGenerator.buildMove}) — it is only
- * resolved during application, against the board's actual occupancy at
- * the destination square; `check` is only added once a move has actually
- * been applied and its effects on opposing kings have been computed (see
- * {@link RuleSet.applyMove}).
+ * The `check` field is only added once a move has actually been applied and
+ * its effects on opposing kings have been computed 
+ * (see {@link RuleSet.applyMove}).
  */
 export interface Move {
   /** The stable id of the piece being moved. */

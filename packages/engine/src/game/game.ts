@@ -386,20 +386,6 @@ export class Game {
     return NEXT_PLAYER_COLOR.get(previous)!;
   }
 
-  public getNextActivePlayerColor(previous: Color): Color {
-    let next = this.getNextPlayerColor(previous);
-    let checkedPlayers = 0;
-
-    while (!this.isPlayerActive(next)) {
-      checkedPlayers += 1;
-      if (checkedPlayers >= NEXT_PLAYER_COLOR.size) return next;
-
-      next = this.getNextPlayerColor(next);
-    }
-
-    return next;
-  }
-
   public rankPlayersByScore(): ReadonlyPlayer[] {
     return [...this.#players]
       .sort((a, b) => b.getScore() - a.getScore())
