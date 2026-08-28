@@ -390,9 +390,6 @@ export abstract class RuleSet {
       this.moveGenerator.buildMove(piece.id, from, to)
     );
 
-    // Captures
-    moves = moves.map(m => this.withDirectCapture(m, board));
-
     if (piece.type === PieceType.PAWN) {
       moves = this.withPawnSpecialMoves(piece, from, game, moves);
     }
@@ -400,6 +397,9 @@ export abstract class RuleSet {
     if (piece.type === PieceType.KING) {
       moves.push(...this.getCastleMoves(piece.color, game));
     }
+
+    // Captures
+    moves = moves.map(m => this.withDirectCapture(m, board));
 
     return moves;
   }
