@@ -1,5 +1,5 @@
 import { Color as EngineColor } from '@chess4/engine';
-import type { Color, Game, PlayerStatus } from '@chess4/engine';
+import type { Color, PlayerStatus } from '@chess4/engine';
 import { GameService } from '../services/game-service';
 
 const PLAYER_ORDER: Color[] = [

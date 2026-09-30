@@ -347,8 +347,4 @@ function createNetworkGameService() {
   };
 }
 
-export const networkGameService = createNetworkGameService();
-
-// Sanity check, dev-time only: fails to compile if the shape drifts
-// from GameService.
-const _shapeCheck: GameService = networkGameService;
+export const networkGameService = createNetworkGameService() satisfies GameService;

@@ -1,5 +1,5 @@
 import { Color as EngineColor } from '@chess4/engine';
-import type { CapturedPiece, Color, Game } from '@chess4/engine';
+import type { CapturedPiece, Color } from '@chess4/engine';
 import { Piece } from '../pieces/Piece';
 import { GameService } from '../services/game-service';
 

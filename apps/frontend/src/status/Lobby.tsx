@@ -9,7 +9,7 @@ interface LobbyProps {
 }
 
 export function Lobby({ onBack }: LobbyProps) {
-  const netGame = useGameService(networkGameService);
+  useGameService(networkGameService);
   const [joinCode, setJoinCode] = useState('');
 
   const roomCode = networkGameService.getRoomCode();
