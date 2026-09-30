@@ -44,6 +44,31 @@ local URL — it starts a standard four-player game with the default
 free-for-all rules and lets you click a piece, then a highlighted square,
 to move.
 
+## Run with Docker
+
+Prerequisites: Docker with the Docker Compose plugin. From the repository
+root, build and start the frontend and multiplayer backend:
+
+```bash
+docker compose up --build -d
+```
+
+Open <http://localhost:8080>. The frontend connects to the backend on port
+`4000` for online multiplayer. To include the optional training server on
+port `4100`, start the training profile:
+
+```bash
+docker compose --profile training up --build -d
+```
+
+Useful commands, also run from the repository root:
+
+```bash
+docker compose ps                 # Show service status
+docker compose logs -f            # Follow service logs
+docker compose down               # Stop and remove containers and network
+```
+
 ## Project status
 
 Both packages are under active development. Notably:
