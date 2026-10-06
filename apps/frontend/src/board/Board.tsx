@@ -92,7 +92,7 @@ export function Board({
             className={[
               'relative flex items-center justify-center',
               isValid
-                ? (isDark ? 'bg-emerald-400' : 'bg-emerald-100')
+                ? (isDark ? 'bg-gray-400' : 'bg-gray-100')
                 : 'bg-transparent',
               isValid ? 'cursor-pointer' : '',
               isSelected && highlights
