@@ -13,36 +13,16 @@ This is a monorepo (npm workspaces) with two packages:
 See each package's own README for details specific to it — this file
 covers the repo as a whole.
 
-## Prerequisites
+## Play Online
 
-- Node.js (a recent LTS version)
-- npm (workspaces are used, so install from the repo root — not from
-  inside `packages/engine` or `apps/frontend`)
+The game is available online at
+[https://ideally-backpedal-patriot.ngrok-free.dev](https://ideally-backpedal-patriot.ngrok-free.dev).
+Open this link on any device to create or join a multiplayer room.
 
-## Getting started
-
-```bash
-# From the repository root
-npm install
-```
-
-This installs dependencies for every workspace in one pass.
-
-## Common commands
-
-Run these from the **repository root**:
-
-```bash
-npm run test:engine      # Run the engine's Jest test suite
-npm run build:engine     # Compile the engine's TypeScript to dist/
-npm run dev:frontend      # Start the Vite dev server for the board UI
-npm run build:frontend    # Production build of the frontend
-```
-
-To play a game locally, run `npm run dev:frontend` and open the printed
-local URL — it starts a standard four-player game with the default
-free-for-all rules and lets you click a piece, then a highlighted square,
-to move.
+> **Note:** You can also open `http://localhost:8080` after running the
+> Docker setup below, but online multiplayer will only work when all
+> players are on the **same device**. For true cross-device multiplayer,
+> use the link above.
 
 ## Run with Docker
 
@@ -68,6 +48,39 @@ docker compose ps                 # Show service status
 docker compose logs -f            # Follow service logs
 docker compose down               # Stop and remove containers and network
 ```
+
+## Development
+
+### Prerequisites
+
+- Node.js (a recent LTS version)
+- npm (workspaces are used, so install from the repo root — not from
+  inside `packages/engine` or `apps/frontend`)
+
+### Getting started
+
+```bash
+# From the repository root
+npm install
+```
+
+This installs dependencies for every workspace in one pass.
+
+### Common commands
+
+Run these from the **repository root**:
+
+```bash
+npm run test:engine      # Run the engine's Jest test suite
+npm run build:engine     # Compile the engine's TypeScript to dist/
+npm run dev:frontend      # Start the Vite dev server for the board UI
+npm run build:frontend    # Production build of the frontend
+```
+
+To play a game locally, run `npm run dev:frontend` and open the printed
+local URL — it starts a standard four-player game with the default
+free-for-all rules and lets you click a piece, then a highlighted square,
+to move.
 
 ## Project status
 
